@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Audio Test</title>
+</head>
+<body>
+    <h1>Audio Test</h1>
+    <button onclick="testAudio()">Test Tera Hone Laga Hoon</button>
+    <button onclick="testAudio2()">Test Kal Ho Naa Ho</button>
+    <button onclick="testAudio3()">Test DJ Waley Babu</button>
+    <div id="status"></div>
+    
+    <script>
+        let audio;
+        
+        function testAudio() {
+            const status = document.getElementById('status');
+            status.innerHTML = 'Testing Tera Hone Laga Hoon...';
+            
+            if (audio) {
+                audio.pause();
+            }
+            
+            audio = new Audio('http://localhost:5000/audio/tera-hone-laga-hoon.mp3');
+            
+            audio.addEventListener('canplay', () => {
+                status.innerHTML = 'Can play - attempting to start...';
+                audio.play().then(() => {
+                    status.innerHTML = '✅ Playing Tera Hone Laga Hoon!';
+                }).catch(error => {
+                    status.innerHTML = '❌ Play failed: ' + error.message;
+                });
+            });
+            
+            audio.addEventListener('error', (e) => {
+                status.innerHTML = '❌ Load failed: ' + (audio.error ? audio.error.message : 'Unknown error');
+            });
+        }
+        
+        function testAudio2() {
+            const status = document.getElementById('status');
+            status.innerHTML = 'Testing Kal Ho Naa Ho...';
+            
+            if (audio) {
+                audio.pause();
+            }
+            
+            audio = new Audio('http://localhost:5000/audio/kal-ho-naa-ho.mp3');
+            
+            audio.addEventListener('canplay', () => {
+                status.innerHTML = 'Can play - attempting to start...';
+                audio.play().then(() => {
+                    status.innerHTML = '✅ Playing Kal Ho Naa Ho!';
+                }).catch(error => {
+                    status.innerHTML = '❌ Play failed: ' + error.message;
+                });
+            });
+            
+            audio.addEventListener('error', (e) => {
+                status.innerHTML = '❌ Load failed: ' + (audio.error ? audio.error.message : 'Unknown error');
+            });
+        }
+        
+        function testAudio3() {
+            const status = document.getElementById('status');
+            status.innerHTML = 'Testing DJ Waley Babu...';
+            
+            if (audio) {
+                audio.pause();
+            }
+            
+            audio = new Audio('http://localhost:5000/audio/dj-waley-babu.mp3');
+            
+            audio.addEventListener('canplay', () => {
+                status.innerHTML = 'Can play - attempting to start...';
+                audio.play().then(() => {
+                    status.innerHTML = '✅ Playing DJ Waley Babu!';
+                }).catch(error => {
+                    status.innerHTML = '❌ Play failed: ' + error.message;
+                });
+            });
+            
+            audio.addEventListener('error', (e) => {
+                status.innerHTML = '❌ Load failed: ' + (audio.error ? audio.error.message : 'Unknown error');
+            });
+        }
+    </script>
+</body>
+</html>
