@@ -37,6 +37,7 @@ const KaraokeMode = ({ song, onClose }) => {
 
   useEffect(() => {
     fetchLyrics();
+    testKaraokeAPI();
     // Pause the main player when karaoke mode opens
     if (pause) pause();
     
@@ -52,6 +53,35 @@ const KaraokeMode = ({ song, onClose }) => {
     };
   }, [song._id]);
 
+  const testKaraokeAPI = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Testing karaoke API connection...');
+      console.log('Token available:', !!token);
+      
+      if (!token) {
+        console.error('No authentication token found!');
+        alert('Please log in again. Authentication token is missing.');
+        return;
+      }
+
+      const response = await axios.get(
+        'http://localhost:5000/api/karaoke/test',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      console.log('Karaoke API test successful:', response.data);
+    } catch (error) {
+      console.error('Karaoke API test failed:', error);
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
+      console.error('This may affect recording save functionality');
+      
+      if (error.response?.status === 401) {
+        alert('Authentication failed. Please log in again.');
+      }
+    }
+  };
+
   const fetchLyrics = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -64,11 +94,11 @@ const KaraokeMode = ({ song, onClose }) => {
         let lyricsContent = '';
         
         // Handle structured lyrics
-        if (response.data.lyrics) {
+        if (response.data.lyrics && typeof response.data.lyrics === 'string' && response.data.lyrics.trim()) {
           try {
             const parsedLyrics = JSON.parse(response.data.lyrics);
             if (parsedLyrics.displayText) {
-              lyricsContent = parsedLyrics.displayText;
+              lyricsContent = String(parsedLyrics.displayText);
             } else if (parsedLyrics.structure) {
               // Format structured lyrics for display
               lyricsContent = parsedLyrics.structure
@@ -85,11 +115,11 @@ const KaraokeMode = ({ song, onClose }) => {
                 })
                 .join('\n\n');
             } else {
-              lyricsContent = response.data.lyrics;
+              lyricsContent = String(response.data.lyrics);
             }
           } catch (parseError) {
             // If parsing fails, treat as plain text
-            lyricsContent = response.data.lyrics;
+            lyricsContent = String(response.data.lyrics);
           }
         } else {
           lyricsContent = 'Lyrics not available for this song. 🎵';
@@ -204,35 +234,92 @@ const KaraokeMode = ({ song, onClose }) => {
   };
 
   const saveRecording = async () => {
-    if (!recordedBlob) return;
+    if (!recordedBlob) {
+      alert('No recording to save. Please record something first.');
+      return;
+    }
 
     try {
       setUploading(true);
+      console.log('Starting to save recording...');
+      console.log('Recording blob size:', recordedBlob.size);
+      console.log('Recording blob type:', recordedBlob.type);
+      console.log('Recording duration:', recordingTime);
+      console.log('Song ID:', song._id);
+
       const formData = new FormData();
-      formData.append('audio', recordedBlob, `karaoke-${Date.now()}.webm`);
+      formData.append('audio', recordedBlob, `karaoke-${song.title}-${Date.now()}.webm`);
       formData.append('songId', song._id);
       formData.append('title', `${song.title} - Karaoke Cover`);
-      formData.append('duration', recordingTime);
+      formData.append('duration', recordingTime.toString());
       formData.append('isPublic', 'true');
 
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+
+      console.log('Token exists:', !!token);
+      console.log('Token length:', token?.length);
+      console.log('FormData entries:');
+      for (let [key, value] of formData.entries()) {
+        if (key === 'audio') {
+          console.log(`  ${key}: Blob (${value.size} bytes, type: ${value.type})`);
+        } else {
+          console.log(`  ${key}: ${value}`);
+        }
+      }
+
+      console.log('Sending request to save recording...');
       const response = await axios.post(
         'http://localhost:5000/api/karaoke/recordings',
         formData,
         {
           headers: {
-            'Content-Type': 'multipart/form-data',
-            Authorization: `Bearer ${token}`
-          }
+            'Authorization': `Bearer ${token}`
+          },
+          timeout: 30000 // 30 second timeout
         }
       );
 
-      alert('Recording saved successfully! You can find it in your Karaoke Library.');
+      console.log('Recording saved successfully:', response.data);
+      
+      // Show success message with details
+      const recording = response.data.recording;
+      const successMessage = `🎉 Recording saved successfully!\n\n` +
+        `Title: ${recording.title}\n` +
+        `Duration: ${formatTime(recordingTime)}\n` +
+        `You can find it in your Karaoke Library.`;
+      
+      alert(successMessage);
+      
+      // Clear the recording
       setRecordedBlob(null);
       setRecordedUrl(null);
+      setRecordingTime(0);
+
     } catch (error) {
       console.error('Error saving recording:', error);
-      alert('Failed to save recording. Please try again.');
+      
+      let errorMessage = 'Failed to save recording. ';
+      
+      if (error.code === 'ECONNABORTED') {
+        errorMessage += 'Request timed out. Please try again.';
+      } else if (error.response) {
+        // Server responded with error status
+        console.error('Server response:', error.response.data);
+        errorMessage += error.response.data?.message || `Server error (${error.response.status})`;
+      } else if (error.request) {
+        // Request made but no response received
+        console.error('No response received:', error.request);
+        errorMessage += 'No response from server. Please check your connection.';
+      } else {
+        // Something else happened
+        errorMessage += error.message;
+      }
+      
+      alert(`❌ ${errorMessage}`);
     } finally {
       setUploading(false);
     }
@@ -293,29 +380,63 @@ const KaraokeMode = ({ song, onClose }) => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Formatted Lyrics Display */}
+                    {/* Enhanced Lyrics Display */}
                     <div className="text-white">
-                      {lyrics.split('\n\n').map((section, sectionIndex) => {
+                      {(lyrics && typeof lyrics === 'string' ? lyrics : 'Lyrics not available for this song. 🎵').split('\n\n').map((section, sectionIndex) => {
                         const lines = section.split('\n');
                         const isHeader = lines[0].startsWith('[') && lines[0].endsWith(']');
                         
                         return (
-                          <div key={sectionIndex} className="mb-8">
+                          <div key={sectionIndex} className="mb-10">
                             {isHeader && (
-                              <div className="mb-4">
-                                <span className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-full text-sm font-semibold uppercase tracking-wide">
+                              <div className="mb-6 text-center">
+                                <span className="inline-block bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 text-white px-6 py-3 rounded-full text-lg font-bold uppercase tracking-wide shadow-lg animate-pulse">
                                   {lines[0].replace(/[\[\]]/g, '')}
                                 </span>
                               </div>
                             )}
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                               {(isHeader ? lines.slice(1) : lines).map((line, lineIndex) => (
                                 line.trim() && (
                                   <div 
                                     key={lineIndex}
-                                    className="text-lg leading-relaxed font-light hover:text-purple-300 transition-colors duration-300 cursor-pointer p-2 rounded-lg hover:bg-purple-900 hover:bg-opacity-20"
+                                    className="group relative overflow-hidden"
                                   >
-                                    {line}
+                                    {/* Background Highlight Animation */}
+                                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/0 via-purple-600/20 to-purple-600/0 transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
+                                    
+                                    {/* Lyric Line */}
+                                    <div 
+                                      className="relative text-xl leading-relaxed font-light text-center p-4 rounded-xl border-2 border-transparent hover:border-purple-400/30 transition-all duration-300 cursor-pointer bg-gray-800/40 backdrop-blur-sm hover:bg-purple-900/30 hover:shadow-lg hover:shadow-purple-500/20 transform hover:scale-105"
+                                      onClick={() => {
+                                        // Add click animation
+                                        const element = document.getElementById(`lyric-${sectionIndex}-${lineIndex}`);
+                                        if (element) {
+                                          element.classList.add('animate-bounce');
+                                          setTimeout(() => element.classList.remove('animate-bounce'), 600);
+                                        }
+                                      }}
+                                      id={`lyric-${sectionIndex}-${lineIndex}`}
+                                    >
+                                      {/* Sparkle Effects */}
+                                      <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping"></div>
+                                      <div className="absolute bottom-2 left-2 w-1 h-1 bg-blue-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping delay-200"></div>
+                                      
+                                      {/* Main Text with Gradient Effect */}
+                                      <span className="relative z-10 bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent font-medium">
+                                        {line}
+                                      </span>
+                                      
+                                      {/* Microphone Icon for Emphasis */}
+                                      <div className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-60 transition-opacity duration-300">
+                                        <Mic className="h-4 w-4 text-purple-400" />
+                                      </div>
+                                    </div>
+
+                                    {/* Singing Indicator */}
+                                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                                    </div>
                                   </div>
                                 )
                               ))}
@@ -323,6 +444,40 @@ const KaraokeMode = ({ song, onClose }) => {
                           </div>
                         );
                       })}
+                      
+                      {/* Singing Tips Overlay */}
+                      <div className="mt-12 p-6 bg-gradient-to-r from-purple-900/40 via-pink-900/40 to-purple-900/40 rounded-2xl border border-purple-500/30 backdrop-blur-sm">
+                        <h4 className="text-lg font-bold text-purple-300 mb-4 flex items-center">
+                          <Music className="h-5 w-5 mr-2" />
+                          🎤 Karaoke Pro Tips
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+                          <div className="flex items-start space-x-3">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <div>
+                              <strong className="text-purple-300">Click any line</strong> to highlight and focus on that part
+                            </div>
+                          </div>
+                          <div className="flex items-start space-x-3">
+                            <div className="w-2 h-2 bg-pink-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <div>
+                              <strong className="text-pink-300">Watch the sparkles</strong> when you hover over lyrics
+                            </div>
+                          </div>
+                          <div className="flex items-start space-x-3">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <div>
+                              <strong className="text-blue-300">Record while singing</strong> to capture your performance
+                            </div>
+                          </div>
+                          <div className="flex items-start space-x-3">
+                            <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <div>
+                              <strong className="text-green-300">Use headphones</strong> for the best audio experience
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     
                     {/* Legal Notice */}
@@ -459,15 +614,18 @@ const KaraokeMode = ({ song, onClose }) => {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={saveRecording}
-                      disabled={uploading}
-                      className="bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white py-3 rounded-lg flex items-center justify-center space-x-2 font-semibold transition-colors"
+                      disabled={uploading || !recordedBlob}
+                      className="bg-green-500 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 rounded-lg flex items-center justify-center space-x-2 font-semibold transition-colors"
                     >
                       {uploading ? (
-                        <Loader className="h-5 w-5 animate-spin" />
+                        <>
+                          <Loader className="h-5 w-5 animate-spin" />
+                          <span>Saving...</span>
+                        </>
                       ) : (
                         <>
                           <Save className="h-5 w-5" />
-                          <span>Save</span>
+                          <span>Save to Library</span>
                         </>
                       )}
                     </button>
@@ -495,6 +653,19 @@ const KaraokeMode = ({ song, onClose }) => {
                 </div>
               )}
 
+              {/* Recording Status */}
+              {recordedUrl && (
+                <div className="bg-green-900 bg-opacity-30 rounded-lg p-4 mt-4 border border-green-500/20">
+                  <h4 className="text-green-300 font-semibold mb-2 text-sm flex items-center">
+                    <Save className="h-4 w-4 mr-2" />
+                    Recording Ready!
+                  </h4>
+                  <p className="text-gray-300 text-xs">
+                    Your {formatTime(recordingTime)} recording is ready to save to your Karaoke Library or download to your device.
+                  </p>
+                </div>
+              )}
+
               {/* Tips */}
               <div className="bg-purple-900 bg-opacity-30 rounded-lg p-4 mt-6">
                 <h4 className="text-purple-300 font-semibold mb-2 text-sm">Tips for Better Karaoke:</h4>
@@ -502,9 +673,20 @@ const KaraokeMode = ({ song, onClose }) => {
                   <li>• Use headphones to avoid feedback</li>
                   <li>• Find a quiet environment</li>
                   <li>• Sing along with the lyrics</li>
+                  <li>• Save recordings to build your collection</li>
                   <li>• Have fun and be creative!</li>
                 </ul>
               </div>
+
+              {/* Troubleshooting */}
+              {!navigator.mediaDevices && (
+                <div className="bg-red-900 bg-opacity-30 rounded-lg p-4 mt-4 border border-red-500/20">
+                  <h4 className="text-red-300 font-semibold mb-2 text-sm">⚠️ Microphone Not Available</h4>
+                  <p className="text-gray-300 text-xs">
+                    Please ensure you're using HTTPS or localhost and grant microphone permissions.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

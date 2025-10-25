@@ -28,12 +28,8 @@ const Login = () => {
 
     const result = await login(formData);
     if (result.success) {
-      // Redirect based on user role
-      if (result.user?.role === 'artist') {
-        navigate('/artist/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      // Navigate to the artist dashboard for all users
+      navigate('/artist/dashboard', { replace: true });
     }
     setIsLoading(false);
   };
@@ -125,7 +121,7 @@ const Login = () => {
               </button>
             </div>
 
-            <div className="text-center">
+            <div className="text-center space-y-2">
               <p className="text-sm text-gray-300">
                 Don't have an account?{' '}
                 <Link

@@ -7,12 +7,12 @@ const Events = () => {
   const [events, setEvents] = useState([]);
   const [followedEvents, setFollowedEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState('following'); // Changed default to 'following'
   const [eventType, setEventType] = useState('');
 
   const filters = [
-    { id: 'all', label: 'All Events', icon: Calendar },
     { id: 'following', label: 'Following', icon: Star },
+    { id: 'all', label: 'All Events', icon: Calendar },
     { id: 'upcoming', label: 'Upcoming', icon: Users }
   ];
 
@@ -35,22 +35,31 @@ const Events = () => {
       setLoading(true);
       let response;
 
+      console.log('Loading events for filter:', activeFilter);
+
       switch (activeFilter) {
         case 'following':
+          console.log('Fetching followed artists events...');
           response = await eventsAPI.getFollowedArtistsEvents();
+          console.log('Followed artists events response:', response.data);
           setEvents(response.data.events || []);
           break;
         case 'upcoming':
+          console.log('Fetching upcoming events...');
           response = await eventsAPI.getUpcomingEvents();
+          console.log('Upcoming events response:', response.data);
           setEvents(response.data.events || []);
           break;
         default:
+          console.log('Fetching all events...');
           const params = eventType ? { type: eventType } : {};
           response = await eventsAPI.getAllEvents(params);
+          console.log('All events response:', response.data);
           setEvents(response.data.events || []);
       }
     } catch (error) {
       console.error('Error loading events:', error);
+      console.error('Error details:', error.response?.data);
       setEvents([]);
     } finally {
       setLoading(false);
@@ -99,7 +108,7 @@ const Events = () => {
           </div>
         </div>
         <p className="text-gray-400">
-          Discover concerts and events from your favorite artists
+          Events and concerts from artists you follow
         </p>
       </div>
 
@@ -131,13 +140,13 @@ const Events = () => {
             <Calendar className="h-16 w-16 text-gray-500 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-300 mb-2">
               {activeFilter === 'following' 
-                ? 'No events from followed artists'
+                ? 'No events from followed artists yet'
                 : 'No events available'
               }
             </h3>
             <p className="text-gray-500 mb-6">
               {activeFilter === 'following'
-                ? 'Follow more artists to get notifications about their events'
+                ? 'Your followed artists haven\'t announced any upcoming events. Follow more artists or check back later for new announcements.'
                 : 'Check back later for new events and concerts'
               }
             </p>

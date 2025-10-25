@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
 router.get('/following', auth, async (req, res) => {
   try {
     // Get user's followed artists
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -88,7 +88,7 @@ router.get('/upcoming', async (req, res) => {
 router.post('/:eventId/interested', auth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user._id;
     
     const event = await Event.findById(eventId);
     if (!event) {
@@ -97,7 +97,7 @@ router.post('/:eventId/interested', auth, async (req, res) => {
     
     // Check if user already marked interest
     const existingInterest = event.attendees.find(
-      attendee => attendee.user.toString() === userId
+      attendee => attendee.user.toString() === userId.toString()
     );
     
     if (existingInterest) {
@@ -119,7 +119,7 @@ router.post('/:eventId/interested', auth, async (req, res) => {
 router.delete('/:eventId/interested', auth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user._id;
     
     const event = await Event.findById(eventId);
     if (!event) {
@@ -128,7 +128,7 @@ router.delete('/:eventId/interested', auth, async (req, res) => {
     
     // Remove user from attendees
     event.attendees = event.attendees.filter(
-      attendee => attendee.user.toString() !== userId
+      attendee => attendee.user.toString() !== userId.toString()
     );
     await event.save();
     

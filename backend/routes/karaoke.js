@@ -26,13 +26,60 @@ const upload = multer({
   storage: storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /audio\/webm|audio\/wav|audio\/mp3|audio\/mpeg|audio\/ogg/;
+    console.log('File filter - MIME type:', file.mimetype);
+    console.log('File filter - Original name:', file.originalname);
+    
+    const allowedTypes = /audio\/webm|audio\/wav|audio\/mp3|audio\/mpeg|audio\/ogg|audio\/mp4/;
     const mimetype = allowedTypes.test(file.mimetype);
+    
     if (mimetype) {
+      console.log('File type accepted');
       return cb(null, true);
     }
-    cb(new Error('Invalid file type. Only audio files are allowed.'));
+    
+    console.log('File type rejected:', file.mimetype);
+    cb(new Error(`Invalid file type: ${file.mimetype}. Only audio files are allowed.`));
   }
+});
+
+// Middleware to handle multer errors
+const handleUploadErrors = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('Multer error:', err);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({
+        success: false,
+        message: 'File too large. Maximum size is 50MB.',
+        error: 'FILE_TOO_LARGE'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: 'File upload error',
+      error: err.message
+    });
+  } else if (err) {
+    console.error('Upload error:', err);
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'File upload failed',
+      error: 'UPLOAD_ERROR'
+    });
+  }
+  next();
+};
+
+// Test endpoint to verify karaoke API is working
+router.get('/test', auth, (req, res) => {
+  res.json({
+    success: true,
+    message: 'Karaoke API is working!',
+    user: {
+      id: req.user.userId,
+      username: req.user.username
+    },
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Get lyrics for a song
@@ -58,47 +105,101 @@ router.get('/lyrics/:songId', auth, async (req, res) => {
 });
 
 // Upload a new recording
-router.post('/recordings', auth, upload.single('audio'), async (req, res) => {
+router.post('/recordings', auth, upload.single('audio'), handleUploadErrors, async (req, res) => {
   try {
+    console.log('=== Karaoke Recording Upload Request ===');
+    console.log('Headers:', req.headers);
+    console.log('User:', req.user);
+    console.log('File:', req.file);
+    console.log('Body:', req.body);
+    console.log('Content-Type:', req.headers['content-type']);
+
     if (!req.file) {
-      return res.status(400).json({ message: 'No audio file uploaded' });
+      console.error('No file uploaded');
+      return res.status(400).json({ 
+        message: 'No audio file uploaded',
+        details: 'Please ensure you are sending an audio file with your request'
+      });
     }
 
     const { songId, title, duration, isPublic } = req.body;
 
     if (!songId) {
-      return res.status(400).json({ message: 'Song ID is required' });
+      console.error('Song ID missing');
+      return res.status(400).json({ 
+        message: 'Song ID is required',
+        details: 'songId parameter is missing from the request'
+      });
     }
 
+    // Validate song exists
+    console.log('Looking up song:', songId);
     const song = await Song.findById(songId);
     if (!song) {
-      return res.status(404).json({ message: 'Song not found' });
+      console.error('Song not found:', songId);
+      return res.status(404).json({ 
+        message: 'Song not found',
+        details: `No song found with ID: ${songId}`
+      });
+    }
+    console.log('Song found:', song.title, 'by', song.artist);
+
+    // Validate duration
+    const parsedDuration = parseInt(duration) || 0;
+    if (parsedDuration <= 0) {
+      console.warn('Invalid duration:', duration, 'Using default 0');
     }
 
     const audioUrl = `/recordings/${req.file.filename}`;
+    console.log('Audio URL:', audioUrl);
 
+    // Create recording record
     const recording = new Recording({
       title: title || `${song.title} - ${req.user.username || 'User'}'s Cover`,
       song: songId,
       user: req.user.userId,
       audioUrl,
-      duration: duration || 0,
-      isPublic: isPublic !== 'false'
+      duration: parsedDuration,
+      isPublic: isPublic === 'true' || isPublic === true
     });
 
+    console.log('Saving recording:', recording);
     await recording.save();
+    console.log('Recording saved with ID:', recording._id);
 
+    // Populate and return the recording
     const populatedRecording = await Recording.findById(recording._id)
       .populate('song', 'title artist albumImageUrl coverImage')
-      .populate('user', 'username email');
+      .populate('user', 'username email firstName lastName');
 
+    console.log('Recording upload successful');
     res.status(201).json({
+      success: true,
       message: 'Recording uploaded successfully',
       recording: populatedRecording
     });
   } catch (error) {
     console.error('Error uploading recording:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    
+    // Clean up uploaded file if database operation failed
+    if (req.file) {
+      const filePath = req.file.path;
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+          console.log('Cleaned up uploaded file after error:', filePath);
+        } catch (cleanupError) {
+          console.error('Failed to clean up file:', cleanupError);
+        }
+      }
+    }
+
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error while uploading recording',
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

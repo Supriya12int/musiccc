@@ -240,14 +240,14 @@ const ArtistDashboard = () => {
               <Music className="h-8 w-8 text-white" />
             </div>
             <div>
-              <span className="text-2xl font-bold text-white">Artist Studio</span>
+              <span className="text-2xl font-bold text-white">{user?.role === 'admin' ? 'Admin Studio' : 'Artist Studio'}</span>
               <p className="text-purple-200 text-sm">Create • Upload • Manage</p>
             </div>
           </div>
           <div className="flex items-center space-x-4">
             <div className="text-right">
               <p className="text-sm font-medium text-white">{user?.firstName} {user?.lastName}</p>
-              <p className="text-xs text-purple-200">🎵 Artist</p>
+              <p className="text-xs text-purple-200">{user?.role === 'admin' ? '👑 Admin' : '🎵 Artist'}</p>
             </div>
             <button
               onClick={handleLogout}
@@ -553,6 +553,7 @@ const ArtistDashboard = () => {
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="">Select Genre</option>
+                    <option value="Podcast">Podcast</option>
                     <option value="Hindi">Hindi</option>
                     <option value="Telugu">Telugu</option>
                     <option value="Tamil">Tamil</option>

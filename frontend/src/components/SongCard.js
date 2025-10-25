@@ -129,6 +129,18 @@ const SongCard = ({ song, onPlay, onKaraoke }) => {
               <Heart className="h-4 w-4" />
             </button>
             
+            {/* Play Next Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlayNext();
+              }}
+              className="hover:text-purple-400 transition-colors duration-200"
+              title="Play Next"
+            >
+              <ListPlus className="h-4 w-4" />
+            </button>
+            
             {/* Three Dots Menu */}
             <div className="relative" ref={menuRef}>
               <button
@@ -191,7 +203,12 @@ const SongCard = ({ song, onPlay, onKaraoke }) => {
                   )}
                   
                   <button
-                    onClick={() => setShowMenu(false)}
+                    onClick={() => {
+                      setShowMenu(false);
+                      if (window.openPlaylistModal) {
+                        window.openPlaylistModal(song);
+                      }
+                    }}
                     className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
                   >
                     <Music className="h-4 w-4 mr-3" />

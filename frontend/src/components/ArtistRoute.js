@@ -20,15 +20,11 @@ const ArtistRoute = ({ children }) => {
 
   if (!isAuthenticated) {
     console.log('Not authenticated, redirecting to artist login');
-    return <Navigate to="/artist/login" replace />;
+    return <Navigate to="/artist/auth" replace />;
   }
 
-  if (user?.role !== 'artist' && user?.role !== 'admin') {
-    console.log('User is not artist/admin, redirecting to dashboard. Role:', user?.role);
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  console.log('User is artist/admin, showing artist dashboard');
+  // Allow all authenticated users to access artist features
+  console.log('User is authenticated, showing artist dashboard');
   return children;
 };
 

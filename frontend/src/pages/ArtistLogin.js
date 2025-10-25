@@ -26,21 +26,33 @@ const ArtistLogin = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    const result = await login(formData);
-    if (result.success) {
-      // Check if user is actually an artist using the response data
-      console.log('Login result:', result);
-      console.log('User role:', result.user?.role);
+    try {
+      console.log('Attempting artist/admin login with:', formData.login);
+      const result = await login(formData);
       
-      if (result.user?.role === 'artist' || result.user?.role === 'admin') {
-        console.log('Redirecting to artist dashboard');
-        navigate('/artist/dashboard');
+      console.log('Login result:', result);
+      
+      if (result.success) {
+        const userRole = result.user?.role;
+        console.log('User role:', userRole);
+        console.log('User data:', result.user);
+        
+        if (userRole === 'artist' || userRole === 'admin') {
+          console.log('Redirecting to artist dashboard');
+          navigate('/artist/dashboard', { replace: true });
+        } else {
+          console.log('User role is not artist/admin, redirecting to regular dashboard');
+          alert('This login is for artists and admins only. Redirecting to user dashboard.');
+          navigate('/dashboard', { replace: true });
+        }
       } else {
-        console.log('Redirecting to regular dashboard');
-        navigate('/dashboard');
+        console.error('Login failed:', result.error);
       }
+    } catch (error) {
+      console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
@@ -49,11 +61,11 @@ const ArtistLogin = () => {
         <div className="text-center">
           <div className="flex justify-center items-center mb-4">
             <Mic className="h-12 w-12 text-white" />
-            <span className="ml-2 text-2xl font-bold text-white">Artist Portal</span>
+            <span className="ml-2 text-2xl font-bold text-white">Artist & Admin Portal</span>
           </div>
-          <h2 className="text-3xl font-extrabold text-white">Welcome back, Artist</h2>
+          <h2 className="text-3xl font-extrabold text-white">Welcome back</h2>
           <p className="mt-2 text-sm text-gray-300">
-            Sign in to your artist account to manage your music
+            Sign in to manage music, upload content, and access admin features
           </p>
         </div>
 
@@ -130,9 +142,9 @@ const ArtistLogin = () => {
               </button>
             </div>
 
-            <div className="text-center">
+            <div className="text-center space-y-2">
               <p className="text-sm text-gray-300">
-                Don't have an artist account?{' '}
+                Don't have an account?{' '}
                 <Link
                   to="/artist/register"
                   className="font-medium text-purple-400 hover:text-purple-300 transition-colors duration-200"
@@ -140,7 +152,7 @@ const ArtistLogin = () => {
                   Sign up as Artist
                 </Link>
               </p>
-              <p className="text-sm text-gray-300 mt-2">
+              <p className="text-sm text-gray-300">
                 Regular user?{' '}
                 <Link
                   to="/login"
@@ -149,6 +161,11 @@ const ArtistLogin = () => {
                   User Login
                 </Link>
               </p>
+              <div className="bg-purple-900/30 rounded-lg p-3 mt-4 border border-purple-500/20">
+                <p className="text-xs text-purple-300 mb-2">🔐 Demo Credentials:</p>
+                <p className="text-xs text-gray-300">🎤 Artist: artist@musiccc.com / artist123</p>
+                <p className="text-xs text-gray-300">👑 Admin: admin@musiccc.com / admin123</p>
+              </div>
             </div>
           </form>
         </div>

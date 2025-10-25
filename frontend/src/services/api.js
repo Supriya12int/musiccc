@@ -52,6 +52,12 @@ export const usersAPI = {
   addToFavorites: (songId) => api.post(`/users/favorites/${songId}`),
   removeFromFavorites: (songId) => api.delete(`/users/favorites/${songId}`),
   getFavorites: () => api.get('/users/favorites'),
+  changePassword: (passwordData) => api.put('/users/change-password', passwordData),
+  updatePreferences: (preferences) => api.put('/users/preferences', preferences),
+  uploadAvatar: (formData) => api.post('/users/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  deleteAccount: () => api.delete('/users/account')
 };
 
 // Music API

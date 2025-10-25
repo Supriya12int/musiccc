@@ -7,16 +7,20 @@ import TopBar from '../components/TopBar';
 import MusicPlayer from '../components/MusicPlayer';
 import SongCard from '../components/SongCard';
 import PlaylistCard from '../components/PlaylistCard';
+import PlaylistModal from '../components/PlaylistModal';
 import BrowseArtists from '../components/BrowseArtists';
 import FollowedArtists from '../components/FollowedArtists';
 import ArtistPage from '../components/ArtistPage';
 import Events from '../components/Events';
 import KaraokeMode from '../components/KaraokeMode';
 import KaraokeLibrary from './KaraokeLibrary';
-import { Play, Pause, Clock, Heart, Music, List, Search, ChevronDown, MoreHorizontal, Mic, Plus } from 'lucide-react';
+import ProfileSettings from '../components/ProfileSettings';
+import Settings from '../components/Settings';
+import { Play, Pause, Clock, Heart, Music, List, Search, ChevronDown, MoreHorizontal, Mic, Plus, ListPlus } from 'lucide-react';
 
 // Song Row Component with 3-dots menu
 const SongRow = ({ song, index, onPlay, onKaraoke, isCurrentSong, isPlaying }) => {
+  const { playNext } = useMusic();
   const [showMenu, setShowMenu] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -35,11 +39,17 @@ const SongRow = ({ song, index, onPlay, onKaraoke, isCurrentSong, isPlaying }) =
     setShowMenu(false);
     
     switch(option) {
+      case 'playnext':
+        playNext(song);
+        break;
       case 'karaoke':
         onKaraoke();
         break;
       case 'playlist':
-        alert('Add to Playlist feature coming soon!');
+        // Pass the song to the parent component to handle playlist modal
+        if (window.openPlaylistModal) {
+          window.openPlaylistModal(song);
+        }
         break;
       case 'favorite':
         try {
@@ -117,6 +127,13 @@ const SongRow = ({ song, index, onPlay, onKaraoke, isCurrentSong, isPlaying }) =
             <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 min-w-[160px]">
               <div className="py-1">
                 <button
+                  onClick={(e) => handleMenuOption(e, 'playnext')}
+                  className="w-full flex items-center px-4 py-2 text-sm text-white hover:bg-gray-700 transition-colors"
+                >
+                  <ListPlus className="h-4 w-4 mr-3" />
+                  Play Next
+                </button>
+                <button
                   onClick={(e) => handleMenuOption(e, 'karaoke')}
                   className="w-full flex items-center px-4 py-2 text-sm text-white hover:bg-gray-700 transition-colors"
                 >
@@ -147,23 +164,22 @@ const SongRow = ({ song, index, onPlay, onKaraoke, isCurrentSong, isPlaying }) =
 };
 
 const Dashboard = () => {
-  const { user } = useAuth();
   const { playSong, recentlyPlayed, currentSong, isPlaying, togglePlayPause } = useMusic();
   const [songs, setSongs] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [popularSongs, setPopularSongs] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
   const [librarySongs, setLibrarySongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('discover');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [karaokeMode, setKaraokeMode] = useState(false);
   const [selectedKaraokeSong, setSelectedKaraokeSong] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categoryView, setCategoryView] = useState('categories'); // 'categories' or 'songs'
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [selectedSongForPlaylist, setSelectedSongForPlaylist] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -178,17 +194,19 @@ const Dashboard = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [songsRes, playlistsRes, popularRes, recommendationsRes] = await Promise.all([
-        musicAPI.getSongs({ limit: 20 }),
+      const [songsRes, playlistsRes, popularRes] = await Promise.all([
+        musicAPI.getSongs({ limit: 1000 }), // Increased limit to get all songs
         playlistsAPI.getUserPlaylists(),
-        musicAPI.getPopularSongs(10),
-        musicAPI.getRecommendations().catch(() => ({ data: [] })), // Fallback if recommendations fail
+        musicAPI.getPopularSongs(10)
       ]);
+
+      console.log('Dashboard - Loaded songs:', songsRes.data.songs);
+      console.log('Dashboard - Hindi songs:', songsRes.data.songs.filter(s => s.genre === 'Hindi'));
+      console.log('Dashboard - Telugu songs:', songsRes.data.songs.filter(s => s.genre === 'Telugu'));
 
       setSongs(songsRes.data.songs);
       setPlaylists(playlistsRes.data);
       setPopularSongs(popularRes.data);
-      setRecommendations(recommendationsRes.data);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -215,17 +233,55 @@ const Dashboard = () => {
     }
   };
 
+  const openPlaylistModal = (song) => {
+    setSelectedSongForPlaylist(song);
+    setPlaylistModalOpen(true);
+  };
+
+  const closePlaylistModal = () => {
+    setPlaylistModalOpen(false);
+    setSelectedSongForPlaylist(null);
+  };
+
+  const handlePlaylistSuccess = () => {
+    // Optionally refresh playlists data
+    loadDashboardData();
+  };
+
+  // Make the function available globally for SongRow component
+  React.useEffect(() => {
+    window.openPlaylistModal = openPlaylistModal;
+    return () => {
+      delete window.openPlaylistModal;
+    };
+  }, []);
+
+  // Dynamic greeting based on time of day
+  const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 17) return "Good Afternoon";
+    if (hour < 21) return "Good Evening";
+    return "Good Night";
+  };
+
+  const getGreetingMessage = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Start your day with some great music.";
+    if (hour < 17) return "Keep the energy going with your favorite tracks.";
+    if (hour < 21) return "Unwind with some beautiful melodies.";
+    return "Relax and enjoy some soothing tunes.";
+  };
+
   const handleSearch = async (query) => {
     setSearchQuery(query);
     
     if (!query.trim()) {
       setSearchResults([]);
-      setIsSearching(false);
       setActiveTab('discover');
       return;
     }
 
-    setIsSearching(true);
     setActiveTab('search');
 
     try {
@@ -273,22 +329,20 @@ const Dashboard = () => {
     setCategoryView('categories');
   };
 
-  const formatDuration = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading your music...</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="text-white text-xl font-medium">Loading your music library...</div>
+          <div className="text-slate-400 text-sm mt-2">Please wait while we prepare your experience</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800 text-white">
       <div className="flex">
         {/* Sidebar */}
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -301,31 +355,71 @@ const Dashboard = () => {
           {/* Dashboard Content */}
           <main className="flex-1 p-6 pb-32 overflow-y-auto">
             {/* Enhanced Welcome Section */}
-            <div className="mb-8 relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-900/30 via-pink-900/20 to-blue-900/30 p-8 border border-purple-500/20">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/5 via-pink-500/5 to-blue-600/5"></div>
-              <div className="absolute top-10 right-10 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl"></div>
-              <div className="absolute bottom-10 left-10 w-24 h-24 bg-pink-500/10 rounded-full blur-xl"></div>
+            <div className="mb-8 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/50 via-gray-900/50 to-slate-800/50 p-8 border border-slate-700/30 backdrop-blur-sm">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-purple-500/5 to-indigo-600/5"></div>
+              <div className="absolute top-8 right-8 w-20 h-20 bg-blue-500/10 rounded-full blur-xl"></div>
+              <div className="absolute bottom-8 left-8 w-16 h-16 bg-purple-500/10 rounded-full blur-lg"></div>
               
               <div className="relative z-10">
-                <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-                  Welcome Back!
-                </h1>
-                <p className="text-xl text-gray-300 mb-6 max-w-2xl">
-                  Your musical journey awaits. Discover incredible tracks, dive into karaoke sessions, and explore the rhythm that moves your soul.
-                </p>
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h1 className="text-4xl font-bold mb-2 text-white">
+                      {getTimeBasedGreeting()}!
+                    </h1>
+                    <p className="text-lg text-slate-300">
+                      {getGreetingMessage()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-slate-400 mb-1">
+                      {new Date().toLocaleDateString('en-US', { 
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </div>
+                    <div className="text-lg font-semibold text-slate-200">
+                      {new Date().toLocaleTimeString('en-US', { 
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                  </div>
+                </div>
                 
-                <div className="flex flex-wrap gap-6">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20">
-                    <div className="text-lg font-semibold text-white">Your Music</div>
-                    <div className="text-purple-300 text-sm">Collection Ready</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl p-6 border border-slate-600/30 hover:border-slate-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10">
+                    <div className="flex items-center mb-3">
+                      <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center mr-3">
+                        <Music className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <h3 className="font-semibold text-white">Your Music</h3>
+                    </div>
+                    <p className="text-slate-400 text-sm mb-2">Extensive Collection</p>
+                    <p className="text-slate-300 text-xs">Access thousands of tracks across multiple genres and languages</p>
                   </div>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20">
-                    <div className="text-lg font-semibold text-white">History</div>
-                    <div className="text-purple-300 text-sm">Available</div>
+                  
+                  <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl p-6 border border-slate-600/30 hover:border-slate-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10">
+                    <div className="flex items-center mb-3">
+                      <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center mr-3">
+                        <Clock className="h-5 w-5 text-purple-400" />
+                      </div>
+                      <h3 className="font-semibold text-white">Listening History</h3>
+                    </div>
+                    <p className="text-slate-400 text-sm mb-2">Always Available</p>
+                    <p className="text-slate-300 text-xs">Track your musical journey and discover patterns in your taste</p>
                   </div>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20">
-                    <div className="text-lg font-semibold text-white">Multi-Language</div>
-                    <div className="text-purple-300 text-sm">Support</div>
+                  
+                  <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl p-6 border border-slate-600/30 hover:border-slate-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10">
+                    <div className="flex items-center mb-3">
+                      <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center mr-3">
+                        <Mic className="h-5 w-5 text-green-400" />
+                      </div>
+                      <h3 className="font-semibold text-white">Karaoke Studio</h3>
+                    </div>
+                    <p className="text-slate-400 text-sm mb-2">Professional Experience</p>
+                    <p className="text-slate-300 text-xs">High-quality karaoke with lyrics and recording capabilities</p>
                   </div>
                 </div>
               </div>
@@ -334,53 +428,49 @@ const Dashboard = () => {
             {activeTab === 'discover' && (
               <>
                 {categoryView === 'categories' ? (
-                  <section className="mb-8">
-                    <div className="flex items-center mb-6">
-                      <Music className="h-6 w-6 text-purple-400 mr-2" />
-                      <h2 className="text-2xl font-bold">Choose Your Musical Language</h2>
+                  <section className="mb-12">
+                    <div className="flex items-center justify-between mb-8">
+                      <div>
+                        <div className="flex items-center mb-2">
+                          <Music className="h-6 w-6 text-blue-400 mr-3" />
+                          <h2 className="text-3xl font-bold text-white">Music Categories</h2>
+                        </div>
+                        <p className="text-slate-400">Explore curated collections across genres and languages</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-slate-500 mb-1">Featured Collections</p>
+                        <p className="text-lg font-semibold text-slate-300">5 Categories</p>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-w-6xl">
                           {/* Hindi Category Box */}
                           <div
                             onClick={() => handleCategoryClick('Hindi')}
                             className="cursor-pointer group"
                           >
-                            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-500 via-pink-500 to-orange-500 p-8 text-white shadow-2xl transform transition-all duration-500 group-hover:scale-105 group-hover:shadow-3xl group-hover:shadow-red-500/25">
-                              {/* Animated Background Elements */}
-                              <div className="absolute inset-0 bg-gradient-to-br from-red-400/20 to-orange-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                              <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-700"></div>
-                              <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-white/5 rounded-full blur-xl group-hover:bg-white/15 transition-all duration-700"></div>
+                            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-red-400/80 to-rose-500/80 p-4 text-white shadow-lg transform transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-red-500/15 aspect-square">
+                              {/* Background Elements */}
+                              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              <div className="absolute -top-4 -right-4 w-8 h-8 bg-white/10 rounded-full blur-lg"></div>
+                              <div className="absolute -bottom-2 -left-2 w-6 h-6 bg-white/5 rounded-full blur-md"></div>
                               
-                              <div className="relative z-10">
-                                <div className="flex items-center justify-between mb-6">
-                                  <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center group-hover:bg-white/30 transition-all duration-300">
-                                    <Music className="h-8 w-8 text-white" />
+                              <div className="relative z-10 h-full flex flex-col">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                    <Music className="h-4 w-4 text-white" />
                                   </div>
-                                  <div className="text-right">
-                                    <div className="text-2xl font-bold mb-1">
-                                      ♪
-                                    </div>
-                                    <div className="text-sm opacity-90 uppercase tracking-wider">Ready</div>
-                                  </div>
+                                  <div className="text-xs opacity-90 uppercase tracking-wider font-medium">Ready</div>
                                 </div>
                                 
-                                <div className="mb-6">
-                                  <h3 className="text-4xl font-bold mb-3">Hindi</h3>
-                                  <p className="text-xl opacity-90 mb-4">Bollywood Hits</p>
-                                  <div className="h-px bg-white/20 mb-4"></div>
-                                  <p className="text-sm opacity-75 leading-relaxed">
-                                    Experience the magic of Bollywood with soulful melodies and energetic beats
-                                  </p>
+                                <div className="flex-1 flex flex-col justify-center">
+                                  <h3 className="text-lg font-bold mb-1">Hindi</h3>
+                                  <p className="text-sm opacity-90">Bollywood Hits</p>
                                 </div>
                                 
-                                <div className="flex items-center justify-between">
-                                  <div className="text-sm opacity-75">
-                                    <span className="font-medium">Top Artists:</span><br/>
-                                    Arijit Singh, Atif Aslam, Sonu Nigam
-                                  </div>
-                                  <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/40 group-hover:scale-110 transition-all duration-300">
-                                    <Play className="h-4 w-4 ml-0.5" />
+                                <div className="mt-auto">
+                                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 group-hover:scale-110 transition-all duration-300">
+                                    <Play className="h-3 w-3 ml-0.5" />
                                   </div>
                                 </div>
                               </div>
@@ -392,41 +482,146 @@ const Dashboard = () => {
                             onClick={() => handleCategoryClick('Telugu')}
                             className="cursor-pointer group"
                           >
-                            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 p-8 text-white shadow-2xl transform transition-all duration-500 group-hover:scale-105 group-hover:shadow-3xl group-hover:shadow-blue-500/25">
-                              {/* Animated Background Elements */}
-                              <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-indigo-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                              <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-700"></div>
-                              <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-white/5 rounded-full blur-xl group-hover:bg-white/15 transition-all duration-700"></div>
+                            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-400/80 to-indigo-500/80 p-4 text-white shadow-lg transform transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-blue-500/15 aspect-square">
+                              {/* Background Elements */}
+                              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              <div className="absolute -top-4 -right-4 w-8 h-8 bg-white/10 rounded-full blur-lg"></div>
+                              <div className="absolute -bottom-2 -left-2 w-6 h-6 bg-white/5 rounded-full blur-md"></div>
                               
-                              <div className="relative z-10">
-                                <div className="flex items-center justify-between mb-6">
-                                  <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center group-hover:bg-white/30 transition-all duration-300">
-                                    <Music className="h-8 w-8 text-white" />
+                              <div className="relative z-10 h-full flex flex-col">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                    <Music className="h-4 w-4 text-white" />
                                   </div>
-                                  <div className="text-right">
-                                    <div className="text-2xl font-bold mb-1">
-                                      ♫
-                                    </div>
-                                    <div className="text-sm opacity-90 uppercase tracking-wider">Ready</div>
-                                  </div>
+                                  <div className="text-xs opacity-90 uppercase tracking-wider font-medium">Ready</div>
                                 </div>
                                 
-                                <div className="mb-6">
-                                  <h3 className="text-4xl font-bold mb-3">Telugu</h3>
-                                  <p className="text-xl opacity-90 mb-4">Tollywood Hits</p>
-                                  <div className="h-px bg-white/20 mb-4"></div>
-                                  <p className="text-sm opacity-75 leading-relaxed">
-                                    Dive into the vibrant world of Telugu cinema with melodious and powerful tracks
-                                  </p>
+                                <div className="flex-1 flex flex-col justify-center">
+                                  <h3 className="text-lg font-bold mb-1">Telugu</h3>
+                                  <p className="text-sm opacity-90">Tollywood Hits</p>
                                 </div>
                                 
-                                <div className="flex items-center justify-between">
-                                  <div className="text-sm opacity-75">
-                                    <span className="font-medium">Top Artists:</span><br/>
-                                    Anirudh, Monica Denise, Kathyayini
+                                <div className="mt-auto">
+                                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 group-hover:scale-110 transition-all duration-300">
+                                    <Play className="h-3 w-3 ml-0.5" />
                                   </div>
-                                  <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/40 group-hover:scale-110 transition-all duration-300">
-                                    <Play className="h-4 w-4 ml-0.5" />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Additional quick access categories */}
+                          <div
+                            onClick={() => handleSearch('Popular')}
+                            className="cursor-pointer group"
+                          >
+                            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-400/80 to-pink-400/80 p-4 text-white shadow-lg transform transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-purple-500/15 aspect-square">
+                              <div className="absolute -top-4 -right-4 w-8 h-8 bg-white/10 rounded-full blur-lg"></div>
+                              
+                              <div className="relative z-10 h-full flex flex-col">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                    <Heart className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div className="text-xs opacity-90 uppercase tracking-wider font-medium">Hot</div>
+                                </div>
+                                
+                                <div className="flex-1 flex flex-col justify-center">
+                                  <h3 className="text-lg font-bold mb-1">Popular</h3>
+                                  <p className="text-sm opacity-90">Trending Now</p>
+                                </div>
+                                
+                                <div className="mt-auto">
+                                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 group-hover:scale-110 transition-all duration-300">
+                                    <Play className="h-3 w-3 ml-0.5" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            onClick={() => handleSearch('Romance')}
+                            className="cursor-pointer group"
+                          >
+                            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-rose-400/80 to-red-400/80 p-4 text-white shadow-lg transform transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-rose-500/15 aspect-square">
+                              <div className="absolute -top-4 -right-4 w-8 h-8 bg-white/10 rounded-full blur-lg"></div>
+                              
+                              <div className="relative z-10 h-full flex flex-col">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                    <Heart className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div className="text-xs opacity-90 uppercase tracking-wider font-medium">Love</div>
+                                </div>
+                                
+                                <div className="flex-1 flex flex-col justify-center">
+                                  <h3 className="text-lg font-bold mb-1">Romance</h3>
+                                  <p className="text-sm opacity-90">Love Songs</p>
+                                </div>
+                                
+                                <div className="mt-auto">
+                                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 group-hover:scale-110 transition-all duration-300">
+                                    <Play className="h-3 w-3 ml-0.5" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            onClick={() => setActiveTab('karaoke-library')}
+                            className="cursor-pointer group"
+                          >
+                            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-green-400/80 to-emerald-500/80 p-4 text-white shadow-lg transform transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-green-500/15 aspect-square">
+                              <div className="absolute -top-4 -right-4 w-8 h-8 bg-white/10 rounded-full blur-lg"></div>
+                              
+                              <div className="relative z-10 h-full flex flex-col">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                    <Mic className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div className="text-xs opacity-90 uppercase tracking-wider font-medium">Sing</div>
+                                </div>
+                                
+                                <div className="flex-1 flex flex-col justify-center">
+                                  <h3 className="text-lg font-bold mb-1">Karaoke</h3>
+                                  <p className="text-sm opacity-90">Sing Along</p>
+                                </div>
+                                
+                                <div className="mt-auto">
+                                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 group-hover:scale-110 transition-all duration-300">
+                                    <Mic className="h-3 w-3" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Podcast Category Box */}
+                          <div
+                            onClick={() => handleCategoryClick('Podcast')}
+                            className="cursor-pointer group"
+                          >
+                            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-orange-400/80 to-yellow-500/80 p-4 text-white shadow-lg transform transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-orange-500/15 aspect-square">
+                              <div className="absolute -top-4 -right-4 w-8 h-8 bg-white/10 rounded-full blur-lg"></div>
+                              
+                              <div className="relative z-10 h-full flex flex-col">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                    <Mic className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div className="text-xs opacity-90 uppercase tracking-wider font-medium">Talk</div>
+                                </div>
+                                
+                                <div className="flex-1 flex flex-col justify-center">
+                                  <h3 className="text-lg font-bold mb-1">Podcasts</h3>
+                                  <p className="text-sm opacity-90">Listen & Learn</p>
+                                </div>
+                                
+                                <div className="mt-auto">
+                                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 group-hover:scale-110 transition-all duration-300">
+                                    <Play className="h-3 w-3 ml-0.5" />
                                   </div>
                                 </div>
                               </div>
@@ -585,6 +780,7 @@ const Dashboard = () => {
                         {[
                           { name: 'Hindi', color: 'bg-red-600', songs: songs.filter(s => s.genre === 'Hindi').length },
                           { name: 'Telugu', color: 'bg-blue-600', songs: songs.filter(s => s.genre === 'Telugu').length },
+                          { name: 'Podcast', color: 'bg-orange-600', songs: songs.filter(s => s.genre === 'Podcast').length },
                           { name: 'Romance', color: 'bg-pink-600', songs: songs.filter(s => s.title.toLowerCase().includes('love') || s.title.toLowerCase().includes('pyar')).length },
                           { name: 'Popular', color: 'bg-purple-600', songs: popularSongs.length }
                         ].map((genre) => (
@@ -666,6 +862,10 @@ const Dashboard = () => {
             {activeTab === 'following' && <FollowedArtists onArtistSelect={handleArtistSelect} />}
 
             {activeTab === 'followed-artists' && <FollowedArtists onArtistSelect={handleArtistSelect} />}
+
+            {activeTab === 'profile' && <ProfileSettings />}
+
+            {activeTab === 'settings' && <Settings />}
 
             {activeTab.startsWith('artist-') && (
               <section>
@@ -815,6 +1015,14 @@ const Dashboard = () => {
       {karaokeMode && selectedKaraokeSong && (
         <KaraokeMode song={selectedKaraokeSong} onClose={handleKaraokeClose} />
       )}
+
+      {/* Playlist Modal */}
+      <PlaylistModal
+        isOpen={playlistModalOpen}
+        onClose={closePlaylistModal}
+        song={selectedSongForPlaylist}
+        onSuccess={handlePlaylistSuccess}
+      />
     </div>
   );
 };

@@ -98,6 +98,28 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
+  // Prevent navigation to auth pages when logged in
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      const handlePopState = (event) => {
+        const currentPath = window.location.pathname;
+        const authPaths = ['/login', '/register', '/artist/login', '/artist/register'];
+        
+        if (authPaths.includes(currentPath)) {
+          event.preventDefault();
+          // All authenticated users go to the artist dashboard
+          window.history.replaceState(null, '', '/artist/dashboard');
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [state.isAuthenticated, state.user]);
+
   // Login user
   const login = async (credentials) => {
     try {
