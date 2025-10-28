@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
-import { musicAPI, playlistsAPI, libraryAPI, usersAPI } from '../services/api';
+import { musicAPI, playlistsAPI, libraryAPI, usersAPI, podcastsAPI } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import TopBar from '../components/TopBar';
 import MusicPlayer from '../components/MusicPlayer';
@@ -23,11 +24,33 @@ const SongRow = ({ song, index, onPlay, onKaraoke, isCurrentSong, isPlaying }) =
   const { playNext } = useMusic();
   const [showMenu, setShowMenu] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const buttonRef = useRef(null);
+  const menuDomRef = useRef(null);
+  const [menuPosition, setMenuPosition] = useState(null);
 
   const handleMenuClick = (e) => {
     e.stopPropagation();
-    setShowMenu(!showMenu);
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuWidth = 200;
+      let left = rect.right - menuWidth;
+      if (left < 8) left = 8;
+      if (left + menuWidth > window.innerWidth - 8) left = window.innerWidth - menuWidth - 8;
+      const top = rect.bottom + 8;
+      setMenuPosition({ top, left });
+    }
+    setShowMenu(prev => !prev);
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const clickedInsideButton = buttonRef.current && buttonRef.current.contains(event.target);
+      const clickedInsideMenu = menuDomRef.current && menuDomRef.current.contains(event.target);
+      if (!clickedInsideButton && !clickedInsideMenu) setShowMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handlePlayClick = (e) => {
     e.stopPropagation();
@@ -117,15 +140,16 @@ const SongRow = ({ song, index, onPlay, onKaraoke, isCurrentSong, isPlaying }) =
         {/* 3-Dots Menu */}
         <div className="relative">
           <button
+            ref={buttonRef}
             onClick={handleMenuClick}
             className="p-2 rounded-full hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           >
             <MoreHorizontal className="h-5 w-5 text-gray-400" />
           </button>
-          
-          {showMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 min-w-[160px]">
-              <div className="py-1">
+
+          {showMenu && menuPosition && createPortal(
+            <div ref={menuDomRef} style={{ position: 'fixed', top: menuPosition.top, left: menuPosition.left, zIndex: 9999 }}>
+              <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1 min-w-[200px]">
                 <button
                   onClick={(e) => handleMenuOption(e, 'playnext')}
                   className="w-full flex items-center px-4 py-2 text-sm text-white hover:bg-gray-700 transition-colors"
@@ -155,7 +179,8 @@ const SongRow = ({ song, index, onPlay, onKaraoke, isCurrentSong, isPlaying }) =
                   Add to Favorites
                 </button>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>
@@ -168,6 +193,8 @@ const Dashboard = () => {
   const [songs, setSongs] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [popularSongs, setPopularSongs] = useState([]);
+  const [podcasts, setPodcasts] = useState([]);
+  const [showPodcastDetails, setShowPodcastDetails] = useState(false);
   const [librarySongs, setLibrarySongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('discover');
@@ -194,19 +221,22 @@ const Dashboard = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [songsRes, playlistsRes, popularRes] = await Promise.all([
+      const [songsRes, playlistsRes, popularRes, podcastsRes] = await Promise.all([
         musicAPI.getSongs({ limit: 1000 }), // Increased limit to get all songs
         playlistsAPI.getUserPlaylists(),
-        musicAPI.getPopularSongs(10)
+        musicAPI.getPopularSongs(10),
+        podcastsAPI.getPodcasts({ limit: 100 })
       ]);
 
       console.log('Dashboard - Loaded songs:', songsRes.data.songs);
       console.log('Dashboard - Hindi songs:', songsRes.data.songs.filter(s => s.genre === 'Hindi'));
       console.log('Dashboard - Telugu songs:', songsRes.data.songs.filter(s => s.genre === 'Telugu'));
+      console.log('Dashboard - Loaded podcasts:', podcastsRes.data.podcasts);
 
       setSongs(songsRes.data.songs);
       setPlaylists(playlistsRes.data);
       setPopularSongs(popularRes.data);
+      setPodcasts(podcastsRes.data.podcasts || []);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -512,7 +542,7 @@ const Dashboard = () => {
 
                           {/* Additional quick access categories */}
                           <div
-                            onClick={() => handleSearch('Popular')}
+                            onClick={() => handleCategoryClick('Popular')}
                             className="cursor-pointer group"
                           >
                             <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-400/80 to-pink-400/80 p-4 text-white shadow-lg transform transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-purple-500/15 aspect-square">
@@ -541,7 +571,7 @@ const Dashboard = () => {
                           </div>
 
                           <div
-                            onClick={() => handleSearch('Romance')}
+                            onClick={() => handleCategoryClick('Romance')}
                             className="cursor-pointer group"
                           >
                             <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-rose-400/80 to-red-400/80 p-4 text-white shadow-lg transform transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-rose-500/15 aspect-square">
@@ -639,26 +669,168 @@ const Dashboard = () => {
                       >
                         <ChevronDown className="h-6 w-6 text-purple-400 rotate-90" />
                       </button>
-                      <h2 className="text-2xl font-bold">{selectedCategory} Songs</h2>
+                      <h2 className="text-2xl font-bold">{selectedCategory === 'Podcast' ? 'Podcast Episodes' : selectedCategory + ' Songs'}</h2>
                     </div>
 
                     <div className="bg-gray-800 rounded-lg overflow-hidden">
-                      <div className="p-4 border-b border-gray-700">
-                        <div className="grid grid-cols-12 gap-4 text-sm text-gray-400 font-medium">
-                          <div className="col-span-1">#</div>
-                          <div className="col-span-5">Title</div>
-                          <div className="col-span-4">Artist</div>
-                          <div className="col-span-2">Album</div>
+                      {selectedCategory === 'Podcast' && (
+                        <div className="p-8">
+                          {!showPodcastDetails ? (
+                            /* Clickable Podcast Container Box */
+                            <div 
+                              onClick={() => setShowPodcastDetails(true)}
+                              className="bg-gradient-to-br from-purple-900/40 to-blue-900/40 border-2 border-purple-500/50 rounded-2xl p-6 backdrop-blur-sm shadow-lg cursor-pointer hover:scale-102 hover:border-purple-400/70 transition-all duration-300 w-80 h-96 mx-auto"
+                            >
+                              <div className="flex flex-col items-center justify-center h-full text-center">
+                                <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-blue-600 rounded-3xl flex items-center justify-center mb-6 shadow-xl">
+                                  <Mic className="h-12 w-12 text-white" />
+                                </div>
+                                <div className="mb-6">
+                                  <h2 className="text-3xl font-bold text-white mb-3">Podcast Collection</h2>
+                                  <p className="text-purple-200 text-lg">{podcasts.length} Episodes Available</p>
+                                </div>
+                                <div className="mb-6">
+                                  <div className="text-purple-300 text-lg font-medium mb-2">Click to View Episodes</div>
+                                  <div className="text-white text-2xl font-bold">↗</div>
+                                </div>
+                                
+                                {/* Preview of podcast titles */}
+                                <div className="mt-auto pt-4 border-t border-purple-500/30 w-full">
+                                  <div className="flex flex-col gap-2">
+                                    {podcasts.slice(0, 2).map((podcast, index) => (
+                                      <div key={podcast._id} className="bg-black/20 rounded-lg px-3 py-2 border border-purple-400/30">
+                                        <span className="text-purple-200 text-sm">#{index + 1} {podcast.title}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Expanded Horizontal Podcast Layout */
+                            <div className="bg-gradient-to-br from-purple-900/40 to-blue-900/40 border-2 border-purple-500/50 rounded-3xl p-8 backdrop-blur-sm shadow-2xl">
+                              {/* Header with Back Button */}
+                              <div className="flex items-center justify-between mb-8 pb-6 border-b border-purple-500/30">
+                                <div className="flex items-center">
+                                  <button 
+                                    onClick={() => setShowPodcastDetails(false)}
+                                    className="w-12 h-12 bg-purple-600 hover:bg-purple-500 rounded-xl flex items-center justify-center mr-6 transition-colors"
+                                  >
+                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                  </button>
+                                  <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl flex items-center justify-center mr-6 shadow-lg">
+                                    <Mic className="h-8 w-8 text-white" />
+                                  </div>
+                                  <div>
+                                    <h2 className="text-3xl font-bold text-white mb-2">Podcast Episodes</h2>
+                                    <p className="text-purple-200 text-lg">{podcasts.length} Episodes Available</p>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Horizontal Podcast Cards */}
+                              {podcasts.length > 0 ? (
+                                <div className="flex gap-8 overflow-x-auto pb-4">
+                                  {podcasts.map((podcast, index) => (
+                                    <div 
+                                      key={podcast._id}
+                                      className="flex-shrink-0 w-80 bg-gradient-to-b from-gray-800/60 to-gray-900/80 rounded-2xl overflow-hidden shadow-xl border border-purple-500/20 hover:border-purple-400/40 transition-all duration-300"
+                                    >
+                                      {/* Podcast Cover */}
+                                      <div className="relative h-48 bg-gradient-to-br from-purple-600 to-blue-700 flex items-center justify-center">
+                                        {podcast.coverImage ? (
+                                          <img 
+                                            src={podcast.coverImage} 
+                                            alt={podcast.title}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : (
+                                          <div className="text-center">
+                                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                              <Mic className="h-8 w-8 text-white" />
+                                            </div>
+                                            <div className="text-white font-bold text-lg">#{index + 1}</div>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Episode Number Badge */}
+                                        <div className="absolute top-3 left-3 w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                                          <span className="text-white font-bold text-sm">#{index + 1}</span>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Podcast Info */}
+                                      <div className="p-6">
+                                        <h3 className="text-lg font-bold text-white mb-2">{podcast.title}</h3>
+                                        <p className="text-purple-200 text-sm mb-4">
+                                          {new Date().getFullYear()} • {podcast.host || 'Various Hosts'}
+                                        </p>
+                                        
+                                        {/* Audio Player */}
+                                        <div className="mb-4">
+                                          <audio 
+                                            controls 
+                                            src={`http://localhost:5000${podcast.audioUrl}`}
+                                            className="w-full h-10"
+                                            style={{ 
+                                              filter: 'hue-rotate(250deg) saturate(1.2) brightness(1.1)',
+                                              borderRadius: '8px'
+                                            }}
+                                            preload="metadata"
+                                          />
+                                        </div>
+                                        
+                                        {/* Stats */}
+                                        <div className="flex justify-between items-center pt-4 border-t border-gray-700/50">
+                                          <div className="flex items-center text-purple-300 text-sm">
+                                            <Clock className="h-4 w-4 mr-1" />
+                                            <span>20:00</span>
+                                          </div>
+                                          <div className="text-purple-300 text-sm">
+                                            {podcast.playCount || 0} plays
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-center py-20">
+                                  <div className="w-24 h-24 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-8">
+                                    <Mic className="h-12 w-12 text-purple-400" />
+                                  </div>
+                                  <h3 className="text-3xl font-bold text-white mb-4">No Podcasts Available</h3>
+                                  <p className="text-gray-400 text-xl">
+                                    Add podcast files to your collection to see them here
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      )}
                       
-                      {songs
-                        .filter(song => song.genre === selectedCategory)
-                        .map((song, index) => (
-                          <SongRow 
-                            key={song._id}
-                            song={song}
-                            index={index}
+                      {selectedCategory !== 'Podcast' && (
+                        /* Songs Section */
+                        <>
+                          <div className="p-4 border-b border-gray-700">
+                            <div className="grid grid-cols-12 gap-4 text-sm text-gray-400 font-medium">
+                              <div className="col-span-1">#</div>
+                              <div className="col-span-5">Title</div>
+                              <div className="col-span-4">Artist</div>
+                              <div className="col-span-2">Album</div>
+                            </div>
+                          </div>
+                          
+                          {songs
+                            .filter(song => song.genre === selectedCategory || (song.tags && song.tags.includes(selectedCategory)))
+                            .map((song, index) => (
+                              <SongRow 
+                                key={song._id}
+                                song={song}
+                                index={index}
                             onPlay={() => handlePlaySong(song, songs.filter(s => s.genre === selectedCategory))}
                             onKaraoke={() => handleKaraokeOpen(song)}
                             isCurrentSong={currentSong && currentSong._id === song._id}
@@ -666,6 +838,8 @@ const Dashboard = () => {
                           />
                         ))
                       }
+                        </>
+                      )}
                     </div>
                   </section>
                 )}
@@ -780,8 +954,8 @@ const Dashboard = () => {
                         {[
                           { name: 'Hindi', color: 'bg-red-600', songs: songs.filter(s => s.genre === 'Hindi').length },
                           { name: 'Telugu', color: 'bg-blue-600', songs: songs.filter(s => s.genre === 'Telugu').length },
-                          { name: 'Podcast', color: 'bg-orange-600', songs: songs.filter(s => s.genre === 'Podcast').length },
-                          { name: 'Romance', color: 'bg-pink-600', songs: songs.filter(s => s.title.toLowerCase().includes('love') || s.title.toLowerCase().includes('pyar')).length },
+                          { name: 'Podcast', color: 'bg-orange-600', songs: podcasts.length },
+                          { name: 'Romance', color: 'bg-pink-600', songs: songs.filter(s => s.genre === 'Romance' || (s.tags && s.tags.includes('Romance')) || s.title.toLowerCase().includes('love') || s.title.toLowerCase().includes('pyar')).length },
                           { name: 'Popular', color: 'bg-purple-600', songs: popularSongs.length }
                         ].map((genre) => (
                           <button

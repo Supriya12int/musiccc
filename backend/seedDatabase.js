@@ -248,6 +248,60 @@ const sampleSongs = [
     lyrics: "Free spirit, indie heart...",
     tags: ["indie", "alternative", "spirit"]
   }
+  ,
+  // User requested songs
+  {
+    title: "Powerhouse",
+    artist: "Various Artists",
+    album: "Powerhouse Singles",
+    genre: "Popular",
+    duration: 215,
+    releaseYear: 2022,
+    audioUrl: "/audio/popular/powerhouse.mp3",
+    coverImage: "https://picsum.photos/300/300?random=21",
+    lyrics: "",
+    tags: ["powerhouse", "energetic"],
+    playCount: 9000
+  },
+  {
+    title: "Kathyayini",
+    artist: "Various Artists",
+    album: "Kathyayini Collection",
+    genre: "Popular",
+    duration: 198,
+    releaseYear: 2021,
+    audioUrl: "/audio/popular/kathyayini.mp3",
+    coverImage: "https://picsum.photos/300/300?random=22",
+    lyrics: "",
+    tags: ["kathyayini", "hit"],
+    playCount: 8500
+  },
+  {
+    title: "Kal Ho Naa Ho",
+    artist: "Various Artists",
+    album: "Bollywood Classics",
+    genre: "Romance",
+    duration: 315,
+    releaseYear: 2003,
+    audioUrl: "/audio/romance/kal-ho-naa-ho.mp3",
+    coverImage: "https://picsum.photos/300/300?random=23",
+    lyrics: "",
+    tags: ["romance", "bollywood"],
+    playCount: 5000
+  },
+  {
+    title: "Tera Hone Laga Hoon",
+    artist: "Various Artists",
+    album: "Romantic Hits",
+    genre: "Romance",
+    duration: 260,
+    releaseYear: 2004,
+    audioUrl: "/audio/romance/tera-hone-laga-hoon.mp3",
+    coverImage: "https://picsum.photos/300/300?random=24",
+    lyrics: "",
+    tags: ["romance", "slow"],
+    playCount: 4800
+  }
 ];
 
 const seedDatabase = async () => {
@@ -276,10 +330,11 @@ const seedDatabase = async () => {
     }
 
     // Add uploadedBy field to each song
+    // Preserve any explicit playCount set in the sample data (so popular songs remain popular)
     const songsWithUploader = sampleSongs.map(song => ({
       ...song,
       uploadedBy: adminUser._id,
-      playCount: Math.floor(Math.random() * 10000) // Random play counts
+      playCount: typeof song.playCount !== 'undefined' ? song.playCount : Math.floor(Math.random() * 10000) // Random play counts when not provided
     }));
 
     // Insert sample songs

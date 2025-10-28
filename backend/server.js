@@ -39,6 +39,7 @@ app.use('/api/karaoke', require('./routes/karaoke'));
 app.use('/api/download', require('./routes/download'));
 app.use('/api/spotify', require('./routes/spotify'));
 app.use('/api/lyrics', require('./routes/lyrics'));
+app.use('/api/podcasts', require('./routes/podcasts'));
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/musiccc', {

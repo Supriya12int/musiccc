@@ -50,18 +50,95 @@ const KaraokeLibrary = () => {
     }
   };
 
-  const playRecording = (recording) => {
+  const playRecording = async (recording) => {
     if (playingId === recording._id) {
       audioRef.current?.pause();
       setPlayingId(null);
     } else {
       if (audioRef.current) {
-        audioRef.current.src = `http://localhost:5000${recording.audioUrl}`;
-        audioRef.current.play();
-        setPlayingId(recording._id);
-        
-        // Increment play count
-        incrementPlayCount(recording._id);
+        try {
+          console.log('🎵 Playing recording:', recording.title);
+          console.log('📁 Audio URL:', recording.audioUrl);
+          
+          const audioUrl = `http://localhost:5000${recording.audioUrl}`;
+          console.log('🔗 Full URL:', audioUrl);
+          
+          // Reset audio element
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+          
+          // Set the source
+          audioRef.current.src = audioUrl;
+          
+          // Set volume to ensure it's audible
+          audioRef.current.volume = 1.0;
+          
+          // Add event listeners for better debugging
+          const onLoadedData = () => {
+            console.log('✅ Audio data loaded successfully');
+            console.log('🔊 Audio duration:', audioRef.current.duration);
+            console.log('🎚️ Audio volume:', audioRef.current.volume);
+          };
+          
+          const onError = (e) => {
+            console.error('❌ Audio playback error:', e);
+            console.error('Audio error details:', audioRef.current.error);
+            alert(`Audio playback failed: ${audioRef.current.error?.message || 'Unknown error'}\n\nPlease check:\n1. Backend server is running\n2. Audio file exists\n3. Browser audio is not muted`);
+            setPlayingId(null);
+          };
+          
+          const onPlay = () => {
+            console.log('▶️ Audio started playing');
+            setPlayingId(recording._id);
+            
+            // Visual feedback - briefly flash the card
+            const cardElement = document.querySelector(`[data-recording-id="${recording._id}"]`);
+            if (cardElement) {
+              cardElement.classList.add('ring-2', 'ring-purple-500');
+              setTimeout(() => {
+                cardElement.classList.remove('ring-2', 'ring-purple-500');
+              }, 1000);
+            }
+          };
+          
+          const onPause = () => {
+            console.log('⏸️ Audio paused');
+          };
+          
+          // Add temporary event listeners
+          audioRef.current.addEventListener('loadeddata', onLoadedData, { once: true });
+          audioRef.current.addEventListener('error', onError, { once: true });
+          audioRef.current.addEventListener('play', onPlay, { once: true });
+          audioRef.current.addEventListener('pause', onPause, { once: true });
+          
+          // Load the audio
+          audioRef.current.load();
+          
+          // Wait a moment for loading
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Attempt to play
+          const playPromise = audioRef.current.play();
+          
+          if (playPromise !== undefined) {
+            await playPromise;
+            console.log('🎉 Audio playing successfully');
+            
+            // Increment play count
+            incrementPlayCount(recording._id);
+          }
+          
+        } catch (error) {
+          console.error('❌ Playback failed:', error);
+          let errorMessage = `Failed to play recording: ${error.message}`;
+          
+          if (error.name === 'NotAllowedError') {
+            errorMessage += '\n\nThis might be due to browser autoplay policy. Please click the play button again.';
+          }
+          
+          alert(errorMessage);
+          setPlayingId(null);
+        }
       }
     }
   };
@@ -147,26 +224,84 @@ const KaraokeLibrary = () => {
     });
   };
 
+  const testAudioAccess = async () => {
+    try {
+      // Test if we can access recordings endpoint
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/recordings/', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      console.log('🔍 Recordings endpoint status:', response.status);
+      
+      // Test a specific recording file
+      if (recordings.length > 0) {
+        const firstRecording = recordings[0];
+        const testUrl = `http://localhost:5000${firstRecording.audioUrl}`;
+        console.log('🧪 Testing URL:', testUrl);
+        
+        const testResponse = await fetch(testUrl);
+        console.log('📁 File access status:', testResponse.status);
+        console.log('📄 Content type:', testResponse.headers.get('content-type'));
+      }
+    } catch (error) {
+      console.error('❌ Audio access test failed:', error);
+    }
+  };
+
   const recordings = activeTab === 'my-recordings' ? myRecordings : publicRecordings;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 p-6">
       <audio
         ref={audioRef}
-        onEnded={() => setPlayingId(null)}
-        className="hidden"
+        onEnded={() => {
+          console.log('🏁 Audio playback ended');
+          setPlayingId(null);
+        }}
+        onError={(e) => {
+          console.error('🚨 Audio element error:', e);
+          console.error('Audio error code:', e.target.error?.code);
+          console.error('Audio error message:', e.target.error?.message);
+        }}
+        onLoadStart={() => console.log('📥 Audio load started')}
+        onCanPlay={() => console.log('✅ Audio can play')}
+        onPlay={() => console.log('▶️ Audio playing')}
+        onPause={() => console.log('⏸️ Audio paused')}
+        preload="metadata"
+        controls
+        style={{ display: recordings.length > 0 ? 'block' : 'none' }}
+        className="mb-4 w-full max-w-md mx-auto"
       />
+      
+      {recordings.length > 0 && (
+        <div className="text-center mb-4">
+          <p className="text-sm text-gray-400">
+            🔧 Debug: Use the audio controls above to test playback manually
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center space-x-3 mb-2">
-          <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-3 rounded-xl">
-            <Mic className="h-8 w-8 text-white" />
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-3">
+            <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-3 rounded-xl">
+              <Mic className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-white">Karaoke Library</h1>
+              <p className="text-gray-400">Listen to your recordings and discover community covers</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-4xl font-bold text-white">Karaoke Library</h1>
-            <p className="text-gray-400">Listen to your recordings and discover community covers</p>
-          </div>
+          
+          {/* Debug Button */}
+          <button
+            onClick={testAudioAccess}
+            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+          >
+            🔧 Test Audio
+          </button>
         </div>
       </div>
 
@@ -220,40 +355,65 @@ const KaraokeLibrary = () => {
           {recordings.map((recording) => (
             <div
               key={recording._id}
-              className="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-750 transition-all transform hover:scale-105"
+              data-recording-id={recording._id}
+              className="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-750 transition-all transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/20 group"
             >
               {/* Cover Image */}
-              <div className="relative h-48 bg-gray-700">
+              <div className="relative h-48 bg-gray-700 group cursor-pointer" onClick={() => playRecording(recording)}>
                 {recording.song?.albumImageUrl || recording.song?.coverImage ? (
                   <img
                     src={recording.song.albumImageUrl || recording.song.coverImage}
                     alt={recording.song.title}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
                     <Music className="h-16 w-16 text-gray-500" />
                   </div>
                 )}
                 
-                {/* Play Button Overlay */}
-                <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-40 transition-all flex items-center justify-center">
-                  <button
-                    onClick={() => playRecording(recording)}
-                    className="w-16 h-16 rounded-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center transform scale-0 hover:scale-100 transition-transform"
-                  >
-                    {playingId === recording._id ? (
-                      <Pause className="h-8 w-8 text-white" />
-                    ) : (
-                      <Play className="h-8 w-8 text-white ml-1" />
-                    )}
-                  </button>
+                {/* Hover Overlay */}
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center">
+                  {/* Play Button */}
+                  <div className={`transform transition-transform duration-300 ease-out ${
+                    playingId === recording._id 
+                      ? 'scale-100' 
+                      : 'scale-0 group-hover:scale-100'
+                  }`}>
+                    <div className="w-20 h-20 rounded-full bg-white bg-opacity-90 backdrop-blur-sm flex items-center justify-center shadow-2xl hover:bg-opacity-100 hover:scale-110 transition-all duration-200">
+                      {playingId === recording._id ? (
+                        <Pause className="h-10 w-10 text-gray-800 ml-0" />
+                      ) : (
+                        <Play className="h-10 w-10 text-gray-800 ml-1" />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Pulse effect when playing */}
+                  {playingId === recording._id && (
+                    <div className="absolute w-20 h-20 rounded-full bg-white opacity-30 animate-ping"></div>
+                  )}
                 </div>
 
+                {/* Playing Indicator */}
+                {playingId === recording._id && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-purple-600/40 to-transparent">
+                    <div className="absolute bottom-2 left-2 flex items-center space-x-2 bg-purple-600 text-white text-xs px-3 py-2 rounded-full shadow-lg animate-pulse">
+                      <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                      <span className="font-medium">Now Playing</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Recording Badge */}
-                <div className="absolute top-3 left-3 bg-red-500 text-white text-xs px-3 py-1 rounded-full flex items-center space-x-1">
+                <div className="absolute top-3 left-3 bg-red-500 text-white text-xs px-3 py-1 rounded-full flex items-center space-x-1 shadow-lg backdrop-blur-sm bg-opacity-90">
                   <Mic className="h-3 w-3" />
                   <span>Karaoke</span>
+                </div>
+
+                {/* Duration Badge */}
+                <div className="absolute top-3 right-3 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                  {formatTime(recording.duration)}
                 </div>
               </div>
 

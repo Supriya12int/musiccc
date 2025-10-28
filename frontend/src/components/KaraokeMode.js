@@ -84,11 +84,17 @@ const KaraokeMode = ({ song, onClose }) => {
 
   const fetchLyrics = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
+      
+      console.log('Fetching lyrics for song:', song.title, 'by', song.artist);
+      
       const response = await axios.get(
         `http://localhost:5000/api/lyrics/song/${song._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      
+      console.log('Lyrics response:', response.data);
       
       if (response.data.success) {
         let lyricsContent = '';
@@ -121,17 +127,42 @@ const KaraokeMode = ({ song, onClose }) => {
             // If parsing fails, treat as plain text
             lyricsContent = String(response.data.lyrics);
           }
+        } else if (response.data.lyrics && typeof response.data.lyrics === 'object') {
+          // Handle object-type lyrics (like sample structure)
+          if (response.data.lyrics.structure) {
+            lyricsContent = response.data.lyrics.structure
+              .map(section => {
+                const sectionHeader = section.type === 'verse' ? 
+                  `[Verse ${section.number || ''}]` : 
+                  `[${section.type.charAt(0).toUpperCase() + section.type.slice(1)}]`;
+                
+                const sectionLines = section.lines.join('\n');
+                return `${sectionHeader}\n${sectionLines}`;
+              })
+              .join('\n\n');
+          } else {
+            lyricsContent = JSON.stringify(response.data.lyrics, null, 2);
+          }
         } else {
-          lyricsContent = 'Lyrics not available for this song. 🎵';
+          lyricsContent = '🎵 Lyrics not available for this song.\n\n[Verse 1]\nSing along with the music!\nFeel the rhythm and beat.\nLet your voice soar high.\nEnjoy this karaoke moment!\n\n[Chorus]\nMusic brings us together,\nVoices joining as one.\nIn this karaoke magic,\nLet the melody run!\n\n[Verse 2]\nCreate your own lyrics,\nMake this song your own.\nIn the spotlight tonight,\nYou\'re not singing alone!';
         }
         
+        console.log('Final lyrics content:', lyricsContent);
         setLyrics(lyricsContent);
       } else {
-        setLyrics('Lyrics not available for this song. 🎵');
+        // Fallback lyrics when API returns success: false
+        const fallbackLyrics = `🎵 ${song.title} - ${song.artist}\n\n[Verse 1]\nSing along with the music!\nFeel the rhythm and beat.\nLet your voice soar high.\nEnjoy this karaoke moment!\n\n[Chorus]\nMusic brings us together,\nVoices joining as one.\nIn this karaoke magic,\nLet the melody run!\n\n[Verse 2]\nCreate your own lyrics,\nMake this song your own.\nIn the spotlight tonight,\nYou're not singing alone!\n\n[Bridge]\nEvery note tells a story,\nEvery word has its place.\nIn this musical journey,\nFind your rhythm and pace!\n\n[Outro]\nThank you for this moment,\nMusic lives in our hearts.\nKeep on singing forever,\nThis is where magic starts!`;
+        
+        console.log('Using fallback lyrics');
+        setLyrics(fallbackLyrics);
       }
     } catch (error) {
       console.error('Error fetching lyrics:', error);
-      setLyrics('Lyrics not available for this song. 🎵\n\nTo add lyrics:\n1. Use licensed lyrics APIs\n2. Add your own original lyrics\n3. Use public domain songs');
+      
+      // Enhanced fallback with song-specific content
+      const enhancedFallback = `🎤 Karaoke Time: ${song.title}\nBy ${song.artist}\n\n[Verse 1]\nSing along with the music!\nFeel the rhythm and beat.\nLet your voice soar high.\nEnjoy this karaoke moment!\n\n[Chorus]\nMusic brings us together,\nVoices joining as one.\nIn this karaoke magic,\nLet the melody run!\n\n[Verse 2]\nCreate your own lyrics,\nMake this song your own.\nIn the spotlight tonight,\nYou're not singing alone!\n\n[Bridge]\nEvery note tells a story,\nEvery word has its place.\nIn this musical journey,\nFind your rhythm and pace!\n\n[Outro]\nThank you for this moment,\nMusic lives in our hearts.\nKeep on singing forever,\nThis is where magic starts!\n\n✨ Pro Tips:\n• Use headphones to avoid feedback\n• Sing with confidence and have fun!\n• Record your performance to save memories\n• Try different vocal styles and expressions`;
+      
+      setLyrics(enhancedFallback);
     } finally {
       setLoading(false);
     }
@@ -380,63 +411,91 @@ const KaraokeMode = ({ song, onClose }) => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Enhanced Lyrics Display */}
-                    <div className="text-white">
-                      {(lyrics && typeof lyrics === 'string' ? lyrics : 'Lyrics not available for this song. 🎵').split('\n\n').map((section, sectionIndex) => {
+                    {/* Enhanced Lyrics Display with Scroll Indicator */}
+                    <div className="text-white relative">
+                      {/* Lyrics Progress Indicator */}
+                      <div className="mb-6 flex items-center justify-center">
+                        <div className="flex items-center space-x-2 bg-purple-900/30 px-4 py-2 rounded-full border border-purple-500/30">
+                          <Mic className="h-4 w-4 text-purple-400" />
+                          <span className="text-sm text-purple-300 font-medium">Follow along and sing!</span>
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                        </div>
+                      </div>
+
+                      {(lyrics && typeof lyrics === 'string' ? lyrics : 'Loading lyrics... 🎵').split('\n\n').map((section, sectionIndex) => {
                         const lines = section.split('\n');
                         const isHeader = lines[0].startsWith('[') && lines[0].endsWith(']');
                         
                         return (
-                          <div key={sectionIndex} className="mb-10">
+                          <div key={sectionIndex} className="mb-12 scroll-smooth" id={`section-${sectionIndex}`}>
                             {isHeader && (
-                              <div className="mb-6 text-center">
-                                <span className="inline-block bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 text-white px-6 py-3 rounded-full text-lg font-bold uppercase tracking-wide shadow-lg animate-pulse">
+                              <div className="mb-8 text-center">
+                                <span className="inline-block bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 text-white px-8 py-4 rounded-2xl text-xl font-bold uppercase tracking-wide shadow-2xl animate-pulse border-2 border-purple-400/50">
                                   {lines[0].replace(/[\[\]]/g, '')}
                                 </span>
                               </div>
                             )}
-                            <div className="space-y-4">
+                            <div className="space-y-5">
                               {(isHeader ? lines.slice(1) : lines).map((line, lineIndex) => (
                                 line.trim() && (
                                   <div 
                                     key={lineIndex}
-                                    className="group relative overflow-hidden"
+                                    className="group relative overflow-hidden transform transition-all duration-500 hover:scale-102"
                                   >
-                                    {/* Background Highlight Animation */}
-                                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/0 via-purple-600/20 to-purple-600/0 transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
+                                    {/* Enhanced Background Highlight Animation */}
+                                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/0 via-purple-600/30 to-purple-600/0 transform -translate-x-full group-hover:translate-x-full transition-transform duration-1500 ease-in-out"></div>
                                     
-                                    {/* Lyric Line */}
+                                    {/* Karaoke-style Lyric Line */}
                                     <div 
-                                      className="relative text-xl leading-relaxed font-light text-center p-4 rounded-xl border-2 border-transparent hover:border-purple-400/30 transition-all duration-300 cursor-pointer bg-gray-800/40 backdrop-blur-sm hover:bg-purple-900/30 hover:shadow-lg hover:shadow-purple-500/20 transform hover:scale-105"
+                                      className="relative text-2xl leading-relaxed font-medium text-center p-6 rounded-2xl border-2 border-transparent hover:border-purple-400/50 transition-all duration-300 cursor-pointer bg-gray-800/50 backdrop-blur-sm hover:bg-purple-900/40 hover:shadow-2xl hover:shadow-purple-500/30 transform hover:scale-105"
                                       onClick={() => {
-                                        // Add click animation
+                                        // Enhanced click animation with sound effect visual
                                         const element = document.getElementById(`lyric-${sectionIndex}-${lineIndex}`);
                                         if (element) {
-                                          element.classList.add('animate-bounce');
-                                          setTimeout(() => element.classList.remove('animate-bounce'), 600);
+                                          element.classList.add('animate-pulse');
+                                          element.style.transform = 'scale(1.1)';
+                                          setTimeout(() => {
+                                            element.classList.remove('animate-pulse');
+                                            element.style.transform = '';
+                                          }, 800);
                                         }
+                                        
+                                        // Scroll to this line smoothly
+                                        element?.scrollIntoView({ 
+                                          behavior: 'smooth', 
+                                          block: 'center' 
+                                        });
                                       }}
                                       id={`lyric-${sectionIndex}-${lineIndex}`}
                                     >
-                                      {/* Sparkle Effects */}
-                                      <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping"></div>
-                                      <div className="absolute bottom-2 left-2 w-1 h-1 bg-blue-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping delay-200"></div>
+                                      {/* Enhanced Sparkle Effects */}
+                                      <div className="absolute top-3 right-3 w-3 h-3 bg-yellow-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping"></div>
+                                      <div className="absolute bottom-3 left-3 w-2 h-2 bg-blue-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping delay-200"></div>
+                                      <div className="absolute top-3 left-3 w-1 h-1 bg-pink-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping delay-500"></div>
                                       
-                                      {/* Main Text with Gradient Effect */}
-                                      <span className="relative z-10 bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent font-medium">
+                                      {/* Main Text with Enhanced Gradient */}
+                                      <span className="relative z-10 bg-gradient-to-r from-white via-purple-100 to-white bg-clip-text text-transparent font-semibold tracking-wide">
                                         {line}
                                       </span>
                                       
-                                      {/* Microphone Icon for Emphasis */}
-                                      <div className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-60 transition-opacity duration-300">
-                                        <Mic className="h-4 w-4 text-purple-400" />
+                                      {/* Enhanced Microphone Icon */}
+                                      <div className="absolute left-4 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-80 transition-all duration-300 rotate-12">
+                                        <Mic className="h-5 w-5 text-purple-400 animate-bounce" />
+                                      </div>
+                                      
+                                      {/* Music Note Animation */}
+                                      <div className="absolute right-4 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-80 transition-all duration-300">
+                                        <Music className="h-5 w-5 text-pink-400 animate-pulse" />
                                       </div>
                                     </div>
 
-                                    {/* Singing Indicator */}
-                                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                                    {/* Enhanced Singing Indicator */}
+                                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center shadow-lg">
+                                      <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                                     </div>
+                                    
+                                    {/* Beat Indicator */}
+                                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-gradient-to-r from-transparent via-purple-400 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 animate-pulse"></div>
                                   </div>
                                 )
                               ))}

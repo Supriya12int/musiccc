@@ -107,8 +107,9 @@ export const AuthProvider = ({ children }) => {
         
         if (authPaths.includes(currentPath)) {
           event.preventDefault();
-          // All authenticated users go to the artist dashboard
-          window.history.replaceState(null, '', '/artist/dashboard');
+          // Redirect based on user role
+          const targetPath = state.user?.role === 'artist' ? '/artist/dashboard' : '/dashboard';
+          window.history.replaceState(null, '', targetPath);
         }
       };
 

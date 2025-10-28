@@ -36,9 +36,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get events for followed artists
+// Get events for followed artists with enhanced filtering
 router.get('/following', auth, async (req, res) => {
   try {
+    const { timeframe = 'upcoming', eventType } = req.query;
+    
     // Get user's followed artists
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -51,16 +53,74 @@ router.get('/following', auth, async (req, res) => {
       return res.json({ events: [] });
     }
     
-    // Get events for followed artists
-    const events = await Event.find({
+    // Build filter based on timeframe
+    let dateFilter = {};
+    const now = new Date();
+    
+    switch (timeframe) {
+      case 'today':
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+        dateFilter = { 
+          date: { 
+            $gte: now, 
+            $lte: endOfDay 
+          }
+        };
+        break;
+      case 'this_week':
+        const endOfWeek = new Date(now);
+        endOfWeek.setDate(now.getDate() + 7);
+        dateFilter = { 
+          date: { 
+            $gte: now, 
+            $lte: endOfWeek 
+          }
+        };
+        break;
+      case 'this_month':
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        dateFilter = { 
+          date: { 
+            $gte: now, 
+            $lte: endOfMonth 
+          }
+        };
+        break;
+      case 'upcoming':
+      default:
+        dateFilter = { date: { $gte: now } };
+        break;
+    }
+    
+    // Build complete filter
+    const filter = {
       artist: { $in: artistNames },
       status: 'upcoming',
-      date: { $gte: new Date() }
-    })
-    .sort({ date: 1 })
-    .limit(20);
+      ...dateFilter
+    };
     
-    res.json({ events });
+    if (eventType) {
+      filter.isOnline = eventType === 'online';
+    }
+    
+    // Get events for followed artists
+    const events = await Event.find(filter)
+      .sort({ date: 1 })
+      .limit(50);
+    
+    // Group events by type
+    const groupedEvents = {
+      online: events.filter(event => event.isOnline),
+      offline: events.filter(event => !event.isOnline),
+      all: events
+    };
+    
+    res.json({ 
+      events: groupedEvents,
+      followedArtists: artistNames,
+      totalEvents: events.length
+    });
   } catch (error) {
     console.error('Error fetching events for followed artists:', error);
     res.status(500).json({ error: 'Failed to fetch events for followed artists' });
@@ -136,6 +196,63 @@ router.delete('/:eventId/interested', auth, async (req, res) => {
   } catch (error) {
     console.error('Error removing interest:', error);
     res.status(500).json({ error: 'Failed to remove interest' });
+  }
+});
+
+// Create a new event (for testing/admin purposes)
+router.post('/create', auth, async (req, res) => {
+  try {
+    const {
+      title,
+      artist,
+      description,
+      eventType,
+      date,
+      endDate,
+      venue,
+      isOnline,
+      onlineLink,
+      ticketPrice,
+      ticketUrl,
+      imageUrl,
+      capacity,
+      tags
+    } = req.body;
+
+    // Validate required fields
+    if (!title || !artist || !description || !eventType || !date) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: title, artist, description, eventType, date' 
+      });
+    }
+
+    // Create event
+    const event = new Event({
+      title,
+      artist,
+      description,
+      eventType,
+      date: new Date(date),
+      endDate: endDate ? new Date(endDate) : null,
+      venue,
+      isOnline: isOnline || false,
+      onlineLink,
+      ticketPrice,
+      ticketUrl,
+      imageUrl,
+      capacity,
+      tags: tags || [],
+      status: 'upcoming'
+    });
+
+    await event.save();
+    res.status(201).json({ 
+      message: 'Event created successfully', 
+      event 
+    });
+  } catch (error) {
+    console.error('Error creating event:', error);
+    res.status(500).json({ error: 'Failed to create event' });
   }
 });
 

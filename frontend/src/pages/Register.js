@@ -60,8 +60,9 @@ const Register = () => {
     const result = await register(registerData);
     
     if (result.success) {
-      // Navigate to the artist dashboard for all users
-      navigate('/artist/dashboard', { replace: true });
+      // Navigate based on user role
+      const targetPath = result.user?.role === 'artist' ? '/artist/dashboard' : '/dashboard';
+      navigate(targetPath, { replace: true });
     }
     setIsLoading(false);
   };

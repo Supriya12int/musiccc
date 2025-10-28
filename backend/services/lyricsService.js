@@ -73,7 +73,7 @@ class LyricsService {
     }
   }
 
-  // Alternative: Create sample lyrics structure for karaoke mode
+  // Enhanced: Create sample lyrics structure for karaoke mode
   generateSampleLyrics(title) {
     return {
       title: title,
@@ -82,38 +82,56 @@ class LyricsService {
           type: 'verse',
           number: 1,
           lines: [
-            '[Add verse 1 lyrics here]',
-            '[Line 2 of verse 1]',
-            '[Line 3 of verse 1]',
-            '[Line 4 of verse 1]'
+            'Welcome to the music tonight',
+            'Feel the rhythm in your soul',
+            'Every beat brings us together',
+            'Let the melody take control'
           ]
         },
         {
           type: 'chorus',
           lines: [
-            '[Add chorus lyrics here]',
-            '[Chorus line 2]',
-            '[Chorus line 3]',
-            '[Chorus line 4]'
+            'Sing it loud, sing it proud',
+            'Let your voice be heard',
+            'In this moment we are free',
+            'Music speaks without a word'
           ]
         },
         {
           type: 'verse',
           number: 2,
           lines: [
-            '[Add verse 2 lyrics here]',
-            '[Line 2 of verse 2]',
-            '[Line 3 of verse 2]',
-            '[Line 4 of verse 2]'
+            'Every note tells a story',
+            'Every word has its place',
+            'In this musical journey',
+            'Find your rhythm and your grace'
           ]
         },
         {
           type: 'chorus',
           lines: [
-            '[Repeat chorus]',
-            '[Chorus line 2]',
-            '[Chorus line 3]',
-            '[Chorus line 4]'
+            'Sing it loud, sing it proud',
+            'Let your voice be heard',
+            'In this moment we are free',
+            'Music speaks without a word'
+          ]
+        },
+        {
+          type: 'bridge',
+          lines: [
+            'Close your eyes and feel the sound',
+            'Let the music lift you high',
+            'In this karaoke magic',
+            'Watch your spirit learn to fly'
+          ]
+        },
+        {
+          type: 'outro',
+          lines: [
+            'Thank you for this moment',
+            'Music lives within our hearts',
+            'Keep on singing forever',
+            'This is where the magic starts'
           ]
         }
       ],

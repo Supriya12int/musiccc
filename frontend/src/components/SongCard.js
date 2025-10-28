@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Play, Pause, Heart, MoreHorizontal, Plus, Check, Music, ExternalLink, ListPlus, Mic } from 'lucide-react';
 import { useMusic } from '../context/MusicContext';
 import { libraryAPI } from '../services/api';
@@ -6,10 +7,13 @@ import { libraryAPI } from '../services/api';
 const SongCard = ({ song, onPlay, onKaraoke }) => {
   const { currentSong, isPlaying, playNext } = useMusic();
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState(null);
   const [isInLibrary, setIsInLibrary] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPlayNextNotification, setShowPlayNextNotification] = useState(false);
   const menuRef = useRef(null);
+  const buttonRef = useRef(null);
+  const menuDomRef = useRef(null);
   const isCurrentSong = currentSong?._id === song._id;
 
   useEffect(() => {
@@ -18,7 +22,9 @@ const SongCard = ({ song, onPlay, onKaraoke }) => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+      const clickedInsideButton = buttonRef.current && buttonRef.current.contains(event.target);
+      const clickedInsideMenu = menuDomRef.current && menuDomRef.current.contains(event.target);
+      if (!clickedInsideButton && !clickedInsideMenu) {
         setShowMenu(false);
       }
     };
@@ -144,77 +150,91 @@ const SongCard = ({ song, onPlay, onKaraoke }) => {
             {/* Three Dots Menu */}
             <div className="relative" ref={menuRef}>
               <button
+                ref={buttonRef}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowMenu(!showMenu);
+                  // compute position for the portal menu
+                  if (buttonRef.current) {
+                    const rect = buttonRef.current.getBoundingClientRect();
+                    const menuWidth = 220; // approximate
+                    let left = rect.right - menuWidth;
+                    if (left < 8) left = 8;
+                    if (left + menuWidth > window.innerWidth - 8) left = window.innerWidth - menuWidth - 8;
+                    const top = rect.bottom + 8;
+                    setMenuPosition({ top, left });
+                  }
+                  setShowMenu(prev => !prev);
                 }}
                 className="hover:text-white transition-colors duration-200"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </button>
-              
-              {showMenu && (
-                <div className="absolute right-0 top-6 z-50 bg-gray-700 rounded-lg shadow-xl py-2 min-w-48">
-                  <button
-                    onClick={handlePlayNext}
-                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
-                  >
-                    <ListPlus className="h-4 w-4 mr-3 text-purple-400" />
-                    Play Next
-                  </button>
-                  
-                  {onKaraoke && (
+
+              {showMenu && menuPosition && createPortal(
+                <div ref={menuDomRef} style={{ position: 'fixed', top: menuPosition.top, left: menuPosition.left, zIndex: 9999 }}>
+                  <div className="bg-gray-700 rounded-lg shadow-xl py-2 min-w-[220px]">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      onClick={() => { handlePlayNext(); setShowMenu(false); }}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
+                    >
+                      <ListPlus className="h-4 w-4 mr-3 text-purple-400" />
+                      Play Next
+                    </button>
+
+                    {onKaraoke && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMenu(false);
+                          onKaraoke(song);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
+                      >
+                        <Mic className="h-4 w-4 mr-3 text-pink-400" />
+                        Karaoke Mode
+                      </button>
+                    )}
+
+                    <button
+                      onClick={async () => { await handleLibraryToggle(); setShowMenu(false); }}
+                      disabled={loading}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
+                    >
+                      {loading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-3"></div>
+                      ) : isInLibrary ? (
+                        <Check className="h-4 w-4 mr-3 text-green-400" />
+                      ) : (
+                        <Plus className="h-4 w-4 mr-3" />
+                      )}
+                      {isInLibrary ? 'Remove from Library' : 'Add to Library'}
+                    </button>
+
+                    {song.spotifyUrl && (
+                      <button
+                        onClick={() => { window.open(song.spotifyUrl, '_blank'); setShowMenu(false); }}
+                        className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-3 text-green-400" />
+                        Open in Spotify
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
                         setShowMenu(false);
-                        onKaraoke(song);
+                        if (window.openPlaylistModal) {
+                          window.openPlaylistModal(song);
+                        }
                       }}
                       className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
                     >
-                      <Mic className="h-4 w-4 mr-3 text-pink-400" />
-                      Karaoke Mode
+                      <Music className="h-4 w-4 mr-3" />
+                      Add to Playlist
                     </button>
-                  )}
-                  
-                  <button
-                    onClick={handleLibraryToggle}
-                    disabled={loading}
-                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
-                  >
-                    {loading ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-3"></div>
-                    ) : isInLibrary ? (
-                      <Check className="h-4 w-4 mr-3 text-green-400" />
-                    ) : (
-                      <Plus className="h-4 w-4 mr-3" />
-                    )}
-                    {isInLibrary ? 'Remove from Library' : 'Add to Library'}
-                  </button>
-                  
-                  {song.spotifyUrl && (
-                    <button
-                      onClick={() => window.open(song.spotifyUrl, '_blank')}
-                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-3 text-green-400" />
-                      Open in Spotify
-                    </button>
-                  )}
-                  
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      if (window.openPlaylistModal) {
-                        window.openPlaylistModal(song);
-                      }
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600 transition-colors duration-200 flex items-center"
-                  >
-                    <Music className="h-4 w-4 mr-3" />
-                    Add to Playlist
-                  </button>
-                </div>
+                  </div>
+                </div>,
+                document.body
               )}
             </div>
           </div>

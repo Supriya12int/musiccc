@@ -98,6 +98,19 @@ export const spotifyAPI = {
   importTrack: (spotifyTrack) => api.post('/spotify/import', spotifyTrack),
 };
 
+// Podcasts API
+export const podcastsAPI = {
+  getPodcasts: (params) => api.get('/podcasts', { params }),
+  getPodcast: (id) => api.get(`/podcasts/${id}`),
+  uploadAudio: (file) => {
+    const form = new FormData();
+    form.append('audio', file);
+    return api.post('/podcasts/upload-audio', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  createPodcast: (podcastData) => api.post('/podcasts', podcastData),
+  deletePodcast: (id) => api.delete(`/podcasts/${id}`),
+};
+
 // Playlists API
 export const playlistsAPI = {
   getUserPlaylists: () => api.get('/playlists'),
@@ -133,10 +146,11 @@ export const libraryAPI = {
 export const eventsAPI = {
   getAllEvents: (params) => api.get('/events', { params }),
   getUpcomingEvents: () => api.get('/events/upcoming'),
-  getFollowedArtistsEvents: () => api.get('/events/following'),
+  getFollowedArtistsEvents: (params) => api.get('/events/following', { params }),
   getEventById: (eventId) => api.get(`/events/${eventId}`),
   markInterested: (eventId) => api.post(`/events/${eventId}/interested`),
   removeInterest: (eventId) => api.delete(`/events/${eventId}/interested`),
+  createEvent: (eventData) => api.post('/events/create', eventData),
 };
 
 export default api;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Music, List, Search, Settings, LogOut, User, Heart, Users, Clock, Calendar, Mic } from 'lucide-react';
+import { Home, Music, List, Search, Settings, LogOut, User, Heart, Users, Clock, Calendar, Mic, Headphones } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab }) => {
   const { logout } = useAuth();

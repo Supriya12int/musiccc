@@ -13,6 +13,7 @@ import ArtistUpload from './pages/ArtistUpload';
 import Dashboard from './pages/Dashboard';
 import ArtistDashboard from './pages/ArtistDashboard';
 import PlaylistsPage from './pages/PlaylistsPage';
+import Podcasts from './pages/Podcasts';
 import './index.css';
 
 function App() {
@@ -71,6 +72,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <PlaylistsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/podcasts"
+                element={
+                  <ProtectedRoute>
+                    <Podcasts />
                   </ProtectedRoute>
                 }
               />
