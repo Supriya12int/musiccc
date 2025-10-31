@@ -41,7 +41,13 @@ app.use('/api/spotify', require('./routes/spotify'));
 app.use('/api/lyrics', require('./routes/lyrics'));
 app.use('/api/podcasts', require('./routes/podcasts'));
 
-// MongoDB connection
+// Serve React app static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Catch all handler: send back React's index.html file for client-side routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/musiccc', {
   useNewUrlParser: true,
   useUnifiedTopology: true,

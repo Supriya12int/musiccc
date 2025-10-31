@@ -66,21 +66,21 @@ const ArtistAuth = () => {
           return;
         }
 
-        console.log('Attempting user registration');
+        console.log('Attempting artist registration');
         const result = await register({
           username: formData.username,
           email: formData.email,
           firstName: formData.firstName,
           lastName: formData.lastName,
           password: formData.password,
-          role: 'user' // Default to regular user
+          role: 'artist' // Register as artist, not user
         });
 
         console.log('Registration result:', result);
 
         if (result.success) {
-          console.log('User registered successfully, redirecting to upload page');
-          navigate('/artist/upload', { replace: true });
+          console.log('User registered successfully, redirecting to artist dashboard');
+          navigate('/artist/dashboard', { replace: true });
         }
       }
     } catch (error) {

@@ -50,8 +50,9 @@ const adminAuth = async (req, res, next) => {
 const artistAuth = async (req, res, next) => {
   try {
     await auth(req, res, () => {
-      if (req.user.role !== 'artist' && req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Access denied. Artist only.' });
+      // Allow artists, admins, and regular users to upload music
+      if (req.user.role !== 'artist' && req.user.role !== 'admin' && req.user.role !== 'user') {
+        return res.status(403).json({ message: 'Access denied. Please log in to upload music.' });
       }
       next();
     });

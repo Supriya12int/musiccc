@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { musicAPI, spotifyAPI } from '../services/api';
-import { Upload, Music, TrendingUp, Clock, Plus, MoreVertical, Trash2 } from 'lucide-react';
+import { 
+  Upload, Music, TrendingUp, Clock, Plus, MoreVertical, Trash2, Users, 
+  Play
+} from 'lucide-react';
 
 const ArtistDashboard = () => {
   const { user, logout } = useAuth();
@@ -21,7 +24,8 @@ const ArtistDashboard = () => {
   const [stats, setStats] = useState({
     totalSongs: 0,
     totalPlays: 0,
-    totalHours: 0
+    totalHours: 0,
+    totalFollowers: 0
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -39,15 +43,45 @@ const ArtistDashboard = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [songsResponse, statsResponse] = await Promise.all([
-        musicAPI.getMySongs(),
-        musicAPI.getArtistStats()
-      ]);
       
-      setMySongs(songsResponse.data.songs);
-      setStats(statsResponse.data);
+      // Try to load songs and stats, but don't fail if API endpoints aren't available
+      let songsData = [];
+      let statsData = { 
+        totalSongs: 0, 
+        totalPlays: 0, 
+        totalHours: 0, 
+        totalFollowers: 0
+      };
+      
+      try {
+        const songsResponse = await musicAPI.getMySongs();
+        songsData = songsResponse.data.songs || [];
+      } catch (error) {
+        console.warn('Failed to load songs:', error);
+        // Continue with empty songs array
+      }
+      
+      try {
+        const statsResponse = await musicAPI.getArtistStats();
+        statsData = statsResponse.data || statsData;
+      } catch (error) {
+        console.warn('Failed to load stats:', error);
+        // Use default stats
+      }
+      
+  console.log('DEBUG: Songs returned from backend:', songsData);
+  setMySongs(songsData);
+  setStats(statsData);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Set default values so dashboard still loads
+      setMySongs([]);
+      setStats({ 
+        totalSongs: 0, 
+        totalPlays: 0, 
+        totalHours: 0, 
+        totalFollowers: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -324,48 +358,69 @@ const ArtistDashboard = () => {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-gradient-to-br from-purple-800 to-purple-900 rounded-xl p-6 shadow-xl border border-purple-600">
-                <div className="flex items-center">
-                  <div className="bg-purple-600 p-3 rounded-full mr-4">
+          <div className="space-y-6">
+            {/* Artist Profile Header */}
+            <div className="bg-gradient-to-r from-purple-900 via-blue-900 to-indigo-900 rounded-xl p-6 border border-purple-500/20 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
                     <Music className="h-8 w-8 text-white" />
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-white">{stats.totalSongs}</p>
-                    <p className="text-purple-200 text-sm font-medium">Total Songs</p>
+                    <h2 className="text-2xl font-bold text-white">{user?.firstName} {user?.lastName}</h2>
+                    <div className="flex items-center space-x-4 text-purple-200 text-sm">
+                      <span>{stats.totalSongs} Songs</span>
+                      <span>{stats.totalFollowers} Followers</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-xl p-6 shadow-xl border border-green-600">
-                <div className="flex items-center">
-                  <div className="bg-green-600 p-3 rounded-full mr-4">
-                    <TrendingUp className="h-8 w-8 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-white">{stats.totalPlays.toLocaleString()}</p>
-                    <p className="text-green-200 text-sm font-medium">Total Plays</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-blue-800 to-blue-900 rounded-xl p-6 shadow-xl border border-blue-600">
-                <div className="flex items-center">
-                  <div className="bg-blue-600 p-3 rounded-full mr-4">
-                    <Clock className="h-8 w-8 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-white">{stats.totalHours}</p>
-                    <p className="text-blue-200 text-sm font-medium">Hours of Music</p>
-                  </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-white">{stats.totalPlays.toLocaleString()}</p>
+                  <p className="text-purple-200 text-sm">Total Plays</p>
                 </div>
               </div>
             </div>
 
-            {/* Recent Songs Preview */}
+            {/* Real Stats - Only 4 Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Total Songs */}
+              <div className="bg-gradient-to-br from-purple-800 to-purple-900 rounded-lg p-4 shadow-lg border border-purple-600/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-white">{stats.totalSongs}</p>
+                    <p className="text-purple-200 text-sm">Total Songs</p>
+                  </div>
+                  <Music className="h-8 w-8 text-purple-400" />
+                </div>
+              </div>
+
+              {/* Total Plays */}
+              <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-lg p-4 shadow-lg border border-green-600/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-white">{stats.totalPlays.toLocaleString()}</p>
+                    <p className="text-green-200 text-sm">Total Plays</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-400" />
+                </div>
+              </div>
+
+              {/* Followers */}
+              <div className="bg-gradient-to-br from-blue-800 to-blue-900 rounded-lg p-4 shadow-lg border border-blue-600/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-white">{stats.totalFollowers}</p>
+                    <p className="text-blue-200 text-sm">Followers</p>
+                  </div>
+                  <Users className="h-8 w-8 text-blue-400" />
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Songs */}
             <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Recent Uploads</h2>
+                <h3 className="text-xl font-bold text-white">Recent Uploads</h3>
                 <button
                   onClick={() => setActiveTab('songs')}
                   className="text-purple-400 hover:text-purple-300 text-sm"
@@ -373,6 +428,7 @@ const ArtistDashboard = () => {
                   View All
                 </button>
               </div>
+              
               {mySongs.length > 0 ? (
                 <div className="space-y-3">
                   {mySongs.slice(0, 5).map((song) => (
@@ -380,23 +436,32 @@ const ArtistDashboard = () => {
                       <div className="flex items-center">
                         <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
                           {song.coverImage ? (
-                            <img
-                              src={song.coverImage}
-                              alt={song.title}
-                              className="w-12 h-12 rounded-lg object-cover"
-                            />
+                            <img src={song.coverImage} alt={song.title} className="w-12 h-12 rounded-lg object-cover" />
                           ) : (
                             <Music className="h-6 w-6 text-white" />
                           )}
                         </div>
                         <div>
-                          <h3 className="font-medium text-white">{song.title}</h3>
+                          <h4 className="font-medium text-white">{song.title}</h4>
                           <p className="text-sm text-gray-400">{song.artist} • {song.genre}</p>
+                          {/* Audio player for song preview */}
+                          {song.audioUrl && (
+                            <audio controls src={song.audioUrl.startsWith('http') ? song.audioUrl : `http://localhost:5000${song.audioUrl}`} style={{ marginTop: '8px', width: '200px' }}>
+                              Your browser does not support the audio element.
+                            </audio>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="flex flex-col items-end">
                         <p className="text-sm text-white">{song.playCount} plays</p>
                         <p className="text-xs text-gray-400">{formatDate(song.createdAt)}</p>
+                        <button
+                          onClick={() => handleDeleteSong(song._id)}
+                          disabled={deletingId === song._id}
+                          className="mt-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded shadow disabled:opacity-50"
+                        >
+                          {deletingId === song._id ? 'Deleting...' : 'Delete'}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -404,7 +469,7 @@ const ArtistDashboard = () => {
               ) : (
                 <div className="text-center py-8">
                   <Music className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                  <h3 className="text-lg font-semibold mb-2">No songs uploaded yet</h3>
+                  <h4 className="text-lg font-semibold mb-2 text-white">No songs uploaded yet</h4>
                   <p className="text-gray-400 mb-4">Upload your first song to get started</p>
                   <button
                     onClick={() => setActiveTab('upload')}
@@ -415,86 +480,148 @@ const ArtistDashboard = () => {
                 </div>
               )}
             </div>
-          </>
+
+            {/* Only Real Quick Action */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-lg font-bold text-white mb-4">Quick Actions</h3>
+              <button
+                onClick={() => setActiveTab('upload')}
+                className="flex items-center space-x-3 p-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 w-full max-w-xs"
+              >
+                <Upload className="h-5 w-5 text-white" />
+                <span className="text-white font-medium">Upload New Track</span>
+              </button>
+            </div>
+          </div>
         )}
 
         {activeTab === 'songs' && (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">My Songs</h2>
-              <button
-                onClick={() => setActiveTab('upload')}
-                className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors duration-200"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Upload New Song
-              </button>
+          <div className="space-y-6">
+            {/* Songs Header */}
+            <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white flex items-center">
+                    <Music className="h-7 w-7 mr-3 text-purple-400" />
+                    My Music Library
+                  </h2>
+                  <p className="text-gray-400 mt-1">{mySongs.length} tracks • {stats.totalPlays.toLocaleString()} total plays</p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('upload')}
+                  className="flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Upload New Track
+                </button>
+              </div>
             </div>
 
             {mySongs.length > 0 ? (
-              <div className="space-y-4">
-                {mySongs.map((song, index) => (
-                  <div key={song._id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors duration-200">
-                    <div className="flex items-center">
-                      <div className="text-gray-400 text-sm mr-4 w-8">
-                        #{index + 1}
-                      </div>
-                      <div className="w-16 h-16 bg-purple-600 rounded-lg flex items-center justify-center mr-4">
-                        {song.coverImage ? (
-                          <img
-                            src={song.coverImage}
-                            alt={song.title}
-                            className="w-16 h-16 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <Music className="h-8 w-8 text-white" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-white text-lg">{song.title}</h3>
-                        <p className="text-gray-400">{song.artist}</p>
-                        <div className="flex items-center text-sm text-gray-500 mt-1">
-                          <span>{song.genre}</span>
-                          <span className="mx-2">•</span>
-                          <span>{formatDuration(song.duration)}</span>
-                          <span className="mx-2">•</span>
-                          <span>{formatDate(song.createdAt)}</span>
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 shadow-xl overflow-hidden">
+                {/* Table Header */}
+                <div className="bg-gray-700/50 px-6 py-4 border-b border-gray-600/50">
+                  <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-300">
+                    <div className="col-span-1">#</div>
+                    <div className="col-span-4">Track</div>
+                    <div className="col-span-2">Album/Genre</div>
+                    <div className="col-span-2">Duration</div>
+                    <div className="col-span-2">Performance</div>
+                    <div className="col-span-1">Actions</div>
+                  </div>
+                </div>
+
+                {/* Songs List */}
+                <div className="divide-y divide-gray-700/50">
+                  {mySongs.map((song, index) => (
+                    <div key={song._id} className="px-6 py-4 hover:bg-gray-700/30 transition-colors duration-200">
+                      <div className="grid grid-cols-12 gap-4 items-center">
+                        {/* Track Number */}
+                        <div className="col-span-1">
+                          <span className="text-gray-400 text-sm font-mono">#{index + 1}</span>
+                        </div>
+
+                        {/* Track Info */}
+                        <div className="col-span-4 flex items-center space-x-3">
+                          <div className="relative group">
+                            <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center overflow-hidden">
+                              {song.coverImage ? (
+                                <img src={song.coverImage} alt={song.title} className="w-16 h-16 object-cover" />
+                              ) : (
+                                <Music className="h-8 w-8 text-white" />
+                              )}
+                            </div>
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                              <Play className="h-6 w-6 text-white" />
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-white text-lg truncate">{song.title}</h3>
+                            <p className="text-gray-400 truncate">{song.artist}</p>
+                            <p className="text-gray-500 text-sm">{formatDate(song.createdAt)}</p>
+                          </div>
+                        </div>
+
+                        {/* Album/Genre */}
+                        <div className="col-span-2">
+                          <p className="text-white font-medium">{song.album || 'Single'}</p>
+                          <p className="text-gray-400 text-sm">{song.genre}</p>
+                        </div>
+
+                        {/* Duration */}
+                        <div className="col-span-2">
+                          <p className="text-white font-mono">{formatDuration(song.duration)}</p>
+                        </div>
+
+                        {/* Performance */}
+                        <div className="col-span-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <Play className="h-4 w-4 text-green-400" />
+                              <span className="text-white font-medium">{song.playCount.toLocaleString()}</span>
+                            </div>
+                            <p className="text-gray-400 text-sm">plays</p>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="col-span-1">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => handleDeleteSong(song._id)}
+                              disabled={deletingId === song._id}
+                              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg disabled:opacity-50 transition-all duration-200"
+                              title="Delete song"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                            <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-600/50 rounded-lg transition-all duration-200">
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <p className="text-white font-medium">{song.playCount.toLocaleString()}</p>
-                        <p className="text-gray-400 text-sm">plays</p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteSong(song._id)}
-                        disabled={deletingId === song._id}
-                        className="p-2 text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors duration-200"
-                        title="Delete song"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
-                      <button className="p-2 text-gray-400 hover:text-white transition-colors duration-200">
-                        <MoreVertical className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
-              <div className="text-center py-16">
-                <Music className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No songs uploaded yet</h3>
-                <p className="text-gray-400 mb-6">
-                  Start building your music library by uploading your first song
-                </p>
-                <button
-                  onClick={() => setActiveTab('upload')}
-                  className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg transition-colors duration-200"
-                >
-                  Upload Your First Song
-                </button>
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-12 border border-gray-700/50 shadow-xl text-center">
+                <div className="max-w-md mx-auto">
+                  <div className="w-24 h-24 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Music className="h-12 w-12 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-3">Your music library is empty</h3>
+                  <p className="text-gray-400 mb-8">
+                    Start building your music library by uploading your first track. Share your creativity with the world!
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('upload')}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 px-8 py-4 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg font-semibold text-white"
+                  >
+                    Upload Your First Track
+                  </button>
+                </div>
               </div>
             )}
           </div>

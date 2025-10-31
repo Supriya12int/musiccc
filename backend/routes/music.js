@@ -5,6 +5,7 @@ const fs = require('fs');
 const Song = require('../models/Song');
 const Recording = require('../models/Recording');
 const Playlist = require('../models/Playlist');
+const User = require('../models/User');
 const { auth, adminAuth, artistAuth } = require('../middleware/auth');
 const { createUpload, getFileUrl, deleteFile } = require('../services/storageService');
 
@@ -249,10 +250,17 @@ router.get('/artist-stats', artistAuth, async (req, res) => {
     const totalDurationSeconds = totalDurationResult.length > 0 ? totalDurationResult[0].totalDuration : 0;
     const totalHours = Math.round((totalDurationSeconds / 3600) * 10) / 10;
 
+    // Calculate follower count - count users who have this artist in their followedArtists
+    const artistName = `${req.user.firstName} ${req.user.lastName}`;
+    const followerCount = await User.countDocuments({
+      'followedArtists.name': artistName
+    });
+
     res.json({
       totalSongs,
       totalPlays,
-      totalHours
+      totalHours,
+      totalFollowers: followerCount
     });
   } catch (error) {
     console.error('Get artist stats error:', error);
