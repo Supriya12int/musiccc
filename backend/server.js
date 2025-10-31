@@ -44,21 +44,17 @@ app.use('/api/podcasts', require('./routes/podcasts'));
 // Serve React app static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Catch all handler: send back React's index.html file for client-side routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/musiccc', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.log('MongoDB connection error:', err));
-
 // Basic route
 app.get('/', (req, res) => {
   res.json({ message: 'Music App Backend API' });
 });
+
+// Catch all handler: send back React's index.html file for client-side routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// MongoDB connection
 
 // Error handling middleware
 app.use((err, req, res, next) => {
